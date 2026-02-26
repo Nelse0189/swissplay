@@ -1,0 +1,23 @@
+{
+  "name": "solaris-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for SwissPlay team management - availability requests",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": ["discord", "bot", "team-management"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "firebase-admin": "^12.0.0",
+    "dotenv": "^16.4.5"
+  }
+}
+
+
+
+

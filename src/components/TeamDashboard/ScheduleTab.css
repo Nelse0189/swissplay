@@ -1,0 +1,151 @@
+.schedule-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.roster-section h3,
+.schedule-section h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #1a1a1a;
+  border-left: 4px solid #1a1a1a;
+  padding-left: 1rem;
+}
+
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.roster-card {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(26, 26, 26, 0.1);
+  padding: 1.5rem;
+  transition: transform 0.2s;
+}
+
+.roster-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(26, 26, 26, 0.3);
+}
+
+.member-role {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #666;
+  font-family: 'Share Tech Mono', monospace;
+  margin-bottom: 0.5rem;
+  letter-spacing: 1px;
+}
+
+.member-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.player-roles {
+  font-size: 0.85rem;
+  color: #555;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* Schedule Calendar */
+.schedule-calendar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.day-column {
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(26, 26, 26, 0.1);
+  padding: 1rem;
+  min-height: 200px;
+}
+
+.day-header {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #1a1a1a;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(26, 26, 26, 0.2);
+  margin-bottom: 1rem;
+}
+
+.day-scrims {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.scrim-card {
+  background: rgba(26, 26, 26, 0.9);
+  color: #d4c5b0;
+  padding: 1rem;
+  border-left: 4px solid #d4c5b0;
+  transition: all 0.2s;
+}
+
+.scrim-card:hover {
+  background: rgba(26, 26, 26, 1);
+  transform: translateX(4px);
+}
+
+.scrim-time {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #d4c5b0;
+}
+
+.scrim-opponent {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+}
+
+.scrim-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.no-scrims {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(26, 26, 26, 0.1);
+}
+
+.no-scrims p {
+  font-family: 'Share Tech Mono', monospace;
+  color: #1a1a1a;
+  margin: 0.5rem 0;
+}
+
+.no-scrims .subtext {
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
+}
+
+.loading-schedule {
+  text-align: center;
+  padding: 2rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: #1a1a1a;
+}
+
+
+
+

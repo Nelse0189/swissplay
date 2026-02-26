@@ -1,0 +1,2729 @@
+import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, REST, Routes, SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { config } from 'dotenv';
+import http from 'http';
+import { initializeFirebase, getFirestore } from './firebase/config.js';
+import { handleAvailabilityRequest, handleAvailabilityResponse, handleButtonAvailabilityResponse } from './commands/availability.js';
+import { handleLinkDiscord } from './commands/link.js';
+import { handleListPlayers } from './commands/list.js';
+import { handleFindFreeAgentsSlash } from './commands/freeagents.js';
+import { parseScrimTimeCSV, isValidScrimTimeCSV } from './utils/scrim-parser.js';
+import { sendVerificationDM, sendVerificationDMByUsername, handleVerificationConfirm, handleVerificationDeny } from './commands/verify.js';
+
+config();
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+
+// Store active availability requests
+client.activeRequests = new Map();
+
+// Initialize Firebase (with error handling)
+try {
+  initializeFirebase();
+} catch (error) {
+  console.error('⚠️  Firebase initialization failed:', error.message);
+  console.log('Continuing without Firebase (some features may not work)');
+}
+
+// Define slash commands
+const commands = [
+  new SlashCommandBuilder()
+    .setName('request-availability')
+    .setDescription('Request availability from specific players or all players')
+    .addStringOption(option =>
+      option.setName('players')
+        .setDescription('Mention players (@player1 @player2) or type "all" for all players')
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('date')
+        .setDescription('Scrim date (e.g., 2024-01-15)')
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('time')
+        .setDescription('Scrim time (e.g., 19:00)')
+        .setRequired(false)),
+  
+  new SlashCommandBuilder()
+    .setName('link')
+    .setDescription('Link a Discord user to a team member')
+    .addStringOption(option =>
+      option.setName('email')
+        .setDescription('The team member email')
+        .setRequired(true))
+    .addUserOption(option =>
+      option.setName('player')
+        .setDescription('The Discord user to link (optional: omit to link yourself)')
+        .setRequired(false)),
+  
+  new SlashCommandBuilder()
+    .setName('list-players')
+    .setDescription('List all players in your team with their Discord status'),
+  
+  new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Show help message with all available commands'),
+  
+  new SlashCommandBuilder()
+    .setName('verify-discord')
+    .setDescription('Verify and link your Discord account (use from web app)')
+    .addStringOption(option =>
+      option.setName('code')
+        .setDescription('Verification code from web app')
+        .setRequired(true)),
+  
+  new SlashCommandBuilder()
+    .setName('upload-scrim')
+    .setDescription('Upload a ScrimTime CSV log file')
+    .addAttachmentOption(option =>
+      option.setName('logfile')
+        .setDescription('The ScrimTime CSV or TXT file')
+        .setRequired(true)),
+  
+  new SlashCommandBuilder()
+    .setName('my-availability')
+    .setDescription('Set your availability for scrims (opens DM)'),
+  
+  new SlashCommandBuilder()
+    .setName('my-team')
+    .setDescription('View your team info and schedule (opens DM)'),
+  
+  new SlashCommandBuilder()
+    .setName('add-player')
+    .setDescription('Add a Discord server member to your team (Manager only)')
+    .addUserOption(option =>
+      option.setName('player')
+        .setDescription('The Discord user to add to your team')
+        .setRequired(true)),
+  
+  new SlashCommandBuilder()
+    .setName('remove-player')
+    .setDescription('Remove a player from your team (Manager only)')
+    .addUserOption(option =>
+      option.setName('player')
+        .setDescription('The player to remove')
+        .setRequired(true)),
+  
+  new SlashCommandBuilder()
+    .setName('schedule-scrim')
+    .setDescription('Schedule a scrim and poll team availability (Manager only)')
+    .addStringOption(option =>
+      option.setName('date')
+        .setDescription('Scrim date (e.g., 2024-03-15 or tomorrow)')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('time')
+        .setDescription('Scrim time (e.g., 19:00 or 7pm)')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('notes')
+        .setDescription('Optional notes about the scrim')
+        .setRequired(false)),
+  
+  new SlashCommandBuilder()
+    .setName('find-time')
+    .setDescription('Find best times based on team availability (Manager only)')
+    .addStringOption(option =>
+      option.setName('period')
+        .setDescription('Time period to analyze')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Next 7 days', value: 'week' },
+          { name: 'Next 14 days', value: 'two-weeks' },
+          { name: 'This week only', value: 'this-week' }
+        )),
+  
+  new SlashCommandBuilder()
+    .setName('team-stats')
+    .setDescription('View team availability statistics and analytics (Manager only)'),
+  
+  new SlashCommandBuilder()
+    .setName('upcoming-scrims')
+    .setDescription('View all upcoming scheduled scrims for your team'),
+  
+  new SlashCommandBuilder()
+    .setName('find-free-agents')
+    .setDescription('Browse free agents looking for teams (Managers)')
+    .addStringOption(option =>
+      option.setName('role')
+        .setDescription('Filter by preferred role')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Tank', value: 'Tank' },
+          { name: 'DPS', value: 'DPS' },
+          { name: 'Support', value: 'Support' },
+          { name: 'Flex', value: 'Flex' }
+        ))
+    .addStringOption(option =>
+      option.setName('region')
+        .setDescription('Filter by region')
+        .setRequired(false)
+        .addChoices(
+          { name: 'NA', value: 'NA' },
+          { name: 'EU', value: 'EU' },
+          { name: 'OCE', value: 'OCE' },
+          { name: 'Asia', value: 'Asia' },
+          { name: 'SA', value: 'SA' }
+        ))
+    .addIntegerOption(option =>
+      option.setName('min_sr')
+        .setDescription('Minimum skill rating')
+        .setRequired(false))
+].map(command => command.toJSON());
+
+// Register slash commands
+async function registerCommands() {
+  try {
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const clientId = process.env.DISCORD_CLIENT_ID;
+    const guildId = process.env.DISCORD_GUILD_ID;
+
+    console.log('🔄 Registering slash commands...');
+
+    if (guildId) {
+      // Register commands for specific guild (appears immediately - great for testing)
+      await rest.put(
+        Routes.applicationGuildCommands(clientId, guildId),
+        { body: commands }
+      );
+      console.log(`✅ Successfully registered slash commands for guild ${guildId} (instant availability)`);
+    } else {
+      // Register commands globally (takes up to 1 hour to propagate)
+      await rest.put(
+        Routes.applicationCommands(clientId),
+        { body: commands }
+      );
+      console.log('✅ Successfully registered slash commands globally (may take up to 1 hour to appear)');
+    }
+  } catch (error) {
+    console.error('❌ Error registering commands:', error);
+  }
+}
+
+client.once('ready', async () => {
+  console.log(`✅ Bot logged in as ${client.user.tag}`);
+  console.log(`📊 Connected to ${client.guilds.cache.size} server(s)`);
+  
+  // Register slash commands when bot is ready
+  await registerCommands();
+  
+  // Set up Firestore listener for automatic Discord verification DMs
+  setupVerificationListener(client);
+  
+  // Set up reminder system (check every 5 minutes)
+  setupScrimReminderSystem(client);
+});
+
+/**
+ * Set up Firestore listener to automatically send verification DMs when new verifications are created
+ */
+function setupVerificationListener(client) {
+  try {
+    const db = getFirestore();
+    if (!db) {
+      console.error('❌ Firestore not available, skipping verification listener setup');
+      return;
+    }
+    
+    const verificationsRef = db.collection('discordVerifications');
+    
+    console.log('👂 Setting up Firestore listener for Discord verifications...');
+    
+    // Listen for new verification documents
+    verificationsRef.onSnapshot((snapshot) => {
+      const changes = snapshot.docChanges();
+      for (const change of changes) {
+        if (change.type === 'added') {
+          const verificationData = change.doc.data();
+          const verificationCode = change.doc.id;
+          
+          // Process pending verifications
+          if (verificationData.status === 'pending' && !verificationData.discordUserId) {
+            // Manager verification (from website button) - find by team
+            if (verificationData.isManagerVerification && verificationData.teamId && verificationData.userUid) {
+              console.log(`📨 Manager verification request detected: ${verificationCode} for team ${verificationData.teamId}`);
+              
+              setTimeout(async () => {
+                try {
+                  // Find manager's Discord ID from team
+                  const teamDoc = await db.collection('teams').doc(verificationData.teamId).get();
+                  if (teamDoc.exists) {
+                    const team = teamDoc.data();
+                    const manager = team.members?.find(m => m.uid === verificationData.userUid);
+                    
+                    if (manager?.discordId) {
+                      // Manager already has Discord linked, send verification DM
+                      await sendVerificationDM(
+                        client,
+                        manager.discordId,
+                        verificationCode,
+                        verificationData.userEmail,
+                        verificationData.userName,
+                        verificationData.teamName,
+                        false,
+                        null
+                      );
+                      
+                      await verificationsRef.doc(verificationCode).update({
+                        dmSent: true,
+                        dmSentAt: new Date(),
+                        discordUserId: manager.discordId
+                      });
+                      
+                      console.log(`✅ Manager verification DM sent to ${manager.discordId}`);
+                    } else {
+                      // Manager doesn't have Discord linked yet
+                      await verificationsRef.doc(verificationCode).update({
+                        dmError: 'Manager Discord account not linked. Please run /link in Discord first.',
+                        dmSent: false
+                      });
+                    }
+                  }
+                } catch (error) {
+                  console.error(`❌ Failed to send manager verification DM:`, error.message);
+                  await verificationsRef.doc(verificationCode).update({
+                    dmError: error.message,
+                    dmSent: false
+                  }).catch(() => {});
+                }
+              }, 1000);
+            }
+            // Username-based verification (invites/legacy)
+            else if (verificationData.discordUsername) {
+            const isInvite = verificationData.isInvite === true;
+            console.log(`📨 New ${isInvite ? 'invite' : 'verification'} request detected: ${verificationCode} for ${verificationData.discordUsername}`);
+            
+            // Small delay to ensure document is fully written
+            setTimeout(async () => {
+              try {
+                await sendVerificationDMByUsername(
+                  client,
+                  verificationData.discordUsername,
+                  verificationCode,
+                  verificationData.userEmail || null,
+                  verificationData.userName || verificationData.discordUsername,
+                  verificationData.teamName,
+                  isInvite,
+                  verificationData.invitedByName || null
+                );
+                
+                // Update verification document to mark DM as sent
+                await verificationsRef.doc(verificationCode).update({
+                  dmSent: true,
+                  dmSentAt: new Date()
+                });
+                
+                console.log(`✅ Verification DM sent to ${verificationData.discordUsername}`);
+              } catch (error) {
+                console.error(`❌ Failed to send automatic verification DM to ${verificationData.discordUsername}:`, error.message);
+                
+                // Update verification document with error
+                try {
+                  await verificationsRef.doc(verificationCode).update({
+                    dmError: error.message,
+                    dmSent: false
+                  });
+                } catch (updateError) {
+                  console.error('Failed to update verification document:', updateError);
+                }
+              }
+            }, 1000);
+            }
+          }
+        }
+      }
+    }, (error) => {
+      console.error('❌ Error in Firestore verification listener:', error);
+      // Don't crash - just log the error
+    });
+    
+    console.log('✅ Firestore listener for Discord verifications is active');
+  } catch (error) {
+    console.error('❌ Failed to set up Firestore listener:', error);
+  }
+}
+
+// Handle all interactions (slash commands and buttons)
+client.on('interactionCreate', async (interaction) => {
+  try {
+    // Handle select-menu interactions (team picker for self-linking)
+    if (interaction.isStringSelectMenu()) {
+      const { customId, values } = interaction;
+
+      if (customId.startsWith('join_team_')) {
+        // Acknowledge quickly and remove the menu to prevent repeat submissions
+        await interaction.update({ content: '⏳ Linking you to the selected team...', components: [] });
+
+        const sessionCode = customId.replace('join_team_', '');
+        const selectedTeamId = values?.[0];
+
+        try {
+          const db = getFirestore();
+          const sessionRef = db.collection('discordLinkSessions').doc(sessionCode);
+          const sessionDoc = await sessionRef.get();
+
+          if (!sessionDoc.exists) {
+            await interaction.followUp({ content: '❌ This link session expired. Please run `/link` again.', ephemeral: true });
+            return;
+          }
+
+          const session = sessionDoc.data();
+          if (!session || session.userId !== interaction.user.id) {
+            await interaction.followUp({ content: '❌ This link session is not for your Discord account.', ephemeral: true });
+            return;
+          }
+
+          if (!selectedTeamId || !Array.isArray(session.teamIds) || !session.teamIds.includes(selectedTeamId)) {
+            await interaction.followUp({ content: '❌ Invalid team selection. Please run `/link` again.', ephemeral: true });
+            return;
+          }
+
+          // Expiration check (15 minutes)
+          const createdAt = session.createdAt?.toDate?.() ?? null;
+          if (createdAt && Date.now() - createdAt.getTime() > 15 * 60 * 1000) {
+            await sessionRef.delete().catch(() => {});
+            await interaction.followUp({ content: '❌ This link session expired. Please run `/link` again.', ephemeral: true });
+            return;
+          }
+
+          await linkOrJoinTeamByEmail({
+            db,
+            teamId: selectedTeamId,
+            guildId: session.guildId,
+            email: session.email,
+            user: interaction.user
+          });
+
+          await sessionRef.delete().catch(() => {});
+          await interaction.followUp({ content: '✅ Linked! Your Discord account is now connected to that team.', ephemeral: true });
+        } catch (error) {
+          console.error('Error handling team selection:', error);
+          await interaction.followUp({ content: `❌ Failed to link: ${error.message}`, ephemeral: true });
+        }
+        return;
+      }
+      
+      if (customId.startsWith('add_player_team_')) {
+        await interaction.update({ content: '⏳ Adding player to team...', components: [] });
+        
+        const sessionCode = customId.replace('add_player_team_', '');
+        const selectedTeamId = values?.[0];
+        
+        try {
+          const db = getFirestore();
+          const sessionRef = db.collection('addPlayerSessions').doc(sessionCode);
+          const sessionDoc = await sessionRef.get();
+          
+          if (!sessionDoc.exists) {
+            await interaction.followUp({ content: '❌ Session expired. Please run `/add-player` again.', ephemeral: true });
+            return;
+          }
+          
+          const session = sessionDoc.data();
+          if (session.managerId !== interaction.user.id) {
+            await interaction.followUp({ content: '❌ This is not your add-player session.', ephemeral: true });
+            return;
+          }
+          
+          const teamDoc = await db.collection('teams').doc(selectedTeamId).get();
+          if (!teamDoc.exists) {
+            await interaction.followUp({ content: '❌ Team not found.', ephemeral: true });
+            return;
+          }
+          
+          const team = { id: teamDoc.id, ...teamDoc.data() };
+          const playerUser = await interaction.client.users.fetch(session.playerId);
+          
+          await addPlayerToTeam(db, team, playerUser);
+          await sessionRef.delete().catch(() => {});
+          
+          await interaction.followUp({
+            content: `✅ Added ${session.playerUsername} to **${team.name}**!`,
+            ephemeral: true
+          });
+          
+          // Send welcome DM
+          try {
+            const welcomeEmbed = new EmbedBuilder()
+              .setTitle('🎮 Welcome to the Team!')
+              .setDescription(`You've been added to **${team.name}** by ${interaction.user.username}!`)
+              .addFields(
+                { name: 'Set Your Availability', value: 'Use `/my-availability` to let your manager know when you can play.' },
+                { name: 'View Team Info', value: 'Use `/my-team` to see your team roster and schedule.' }
+              )
+              .setColor(0x00ff00);
+            
+            await playerUser.send({ embeds: [welcomeEmbed] });
+          } catch (dmError) {
+            console.log(`Could not DM player:`, dmError.message);
+          }
+          
+        } catch (error) {
+          console.error('Error adding player:', error);
+          await interaction.followUp({ content: `❌ Failed to add player: ${error.message}`, ephemeral: true });
+        }
+        return;
+      }
+      
+      if (customId.startsWith('schedule_scrim_team_')) {
+        await interaction.update({ content: '⏳ Scheduling scrim...', components: [] });
+        
+        const sessionCode = customId.replace('schedule_scrim_team_', '');
+        const selectedTeamId = values?.[0];
+        
+        try {
+          const db = getFirestore();
+          const sessionRef = db.collection('scheduleScrimSessions').doc(sessionCode);
+          const sessionDoc = await sessionRef.get();
+          
+          if (!sessionDoc.exists) {
+            await interaction.followUp({ content: '❌ Session expired. Please run `/schedule-scrim` again.', ephemeral: true });
+            return;
+          }
+          
+          const session = sessionDoc.data();
+          if (session.managerId !== interaction.user.id) {
+            await interaction.followUp({ content: '❌ This is not your schedule session.', ephemeral: true });
+            return;
+          }
+          
+          const teamDoc = await db.collection('teams').doc(selectedTeamId).get();
+          if (!teamDoc.exists) {
+            await interaction.followUp({ content: '❌ Team not found.', ephemeral: true });
+            return;
+          }
+          
+          const team = { id: teamDoc.id, ...teamDoc.data() };
+          
+          await scheduleScrimForTeam(
+            db,
+            interaction.client,
+            team,
+            session.date,
+            session.time,
+            session.notes || '',
+            interaction.user
+          );
+          
+          await sessionRef.delete().catch(() => {});
+          
+          await interaction.followUp({
+            content: `✅ Scrim scheduled for **${team.name}** on **${session.date}** at **${session.time}**!\n\nPolling your team via DM...`,
+            ephemeral: true
+          });
+          
+        } catch (error) {
+          console.error('Error scheduling scrim:', error);
+          await interaction.followUp({ content: `❌ Failed to schedule: ${error.message}`, ephemeral: true });
+        }
+        return;
+      }
+
+      return;
+    }
+
+    // Handle button interactions
+    if (interaction.isButton()) {
+      const customId = interaction.customId;
+      
+      // Handle scrim poll response buttons
+      if (customId.startsWith('scrim_')) {
+        const parts = customId.split('_');
+        if (parts.length === 3) {
+          const responseType = parts[1]; // yes, no, maybe
+          const pollId = parts[2];
+          
+          await handleScrimPollResponse(interaction, pollId, responseType);
+        }
+        return;
+      }
+      
+      // Handle availability response buttons
+      if (customId.startsWith('avail_')) {
+        const parts = customId.split('_');
+        if (parts.length === 3) {
+          const responseType = parts[1]; // yes, no, maybe
+          const requestId = parts[2];
+          
+          await handleButtonAvailabilityResponse(interaction, requestId, responseType);
+        }
+        return;
+      }
+      
+      // Handle verification buttons
+      if (customId.startsWith('verify_confirm_')) {
+        const verificationCode = customId.replace('verify_confirm_', '');
+        // Guard against empty verification codes
+        if (!verificationCode || verificationCode.trim().length === 0) {
+          try {
+            await interaction.reply({ 
+              content: '❌ Invalid verification code. Please re-link from the website.', 
+              ephemeral: true 
+            });
+          } catch (replyError) {
+            console.error('Failed to send error reply:', replyError);
+          }
+          return;
+        }
+        try {
+          await handleVerificationConfirm(interaction, verificationCode);
+        } catch (error) {
+          console.error('Error handling verification confirm:', error);
+          if (!interaction.replied && !interaction.deferred) {
+            try {
+              await interaction.reply({ 
+                content: '❌ An error occurred processing your confirmation.', 
+                ephemeral: true 
+              });
+            } catch (replyError) {
+              console.error('Failed to send error reply:', replyError);
+            }
+          }
+        }
+        return;
+      }
+      
+      if (customId.startsWith('verify_deny_')) {
+        const verificationCode = customId.replace('verify_deny_', '');
+        // Guard against empty verification codes
+        if (!verificationCode || verificationCode.trim().length === 0) {
+          try {
+            await interaction.reply({ 
+              content: '❌ Invalid verification code. Please re-link from the website.', 
+              ephemeral: true 
+            });
+          } catch (replyError) {
+            console.error('Failed to send error reply:', replyError);
+          }
+          return;
+        }
+        try {
+          await handleVerificationDeny(interaction, verificationCode);
+        } catch (error) {
+          console.error('Error handling verification deny:', error);
+          if (!interaction.replied && !interaction.deferred) {
+            try {
+              await interaction.reply({ 
+                content: '❌ An error occurred processing your denial.', 
+                ephemeral: true 
+              });
+            } catch (replyError) {
+              console.error('Failed to send error reply:', replyError);
+            }
+          }
+        }
+        return;
+      }
+      
+      return;
+    }
+
+    // Handle slash commands
+    if (!interaction.isChatInputCommand()) return;
+
+    const { commandName } = interaction;
+
+    switch (commandName) {
+      case 'request-availability':
+        await handleAvailabilityRequestSlash(interaction);
+        break;
+      
+      case 'link':
+        await handleLinkDiscordSlash(interaction);
+        break;
+      
+      case 'list-players':
+        await handleListPlayersSlash(interaction);
+        break;
+      
+      case 'help':
+        await handleHelpSlash(interaction);
+        break;
+      
+      case 'verify-discord':
+        await handleVerifyDiscordSlash(interaction);
+        break;
+      
+      case 'upload-scrim':
+        await handleUploadScrimSlash(interaction);
+        break;
+      
+      case 'my-availability':
+        await handleMyAvailabilitySlash(interaction);
+        break;
+      
+      case 'my-team':
+        await handleMyTeamSlash(interaction);
+        break;
+      
+      case 'add-player':
+        await handleAddPlayerSlash(interaction);
+        break;
+      
+      case 'remove-player':
+        await handleRemovePlayerSlash(interaction);
+        break;
+      
+      case 'schedule-scrim':
+        await handleScheduleScrimSlash(interaction);
+        break;
+      
+      case 'find-time':
+        await handleFindTimeSlash(interaction);
+        break;
+      
+      case 'team-stats':
+        await handleTeamStatsSlash(interaction);
+        break;
+      
+      case 'upcoming-scrims':
+        await handleUpcomingScrimsSlash(interaction);
+        break;
+      
+      case 'find-free-agents':
+        await handleFindFreeAgentsSlash(interaction);
+        break;
+      
+      default:
+        await interaction.reply({ content: '❌ Unknown command.', ephemeral: true });
+    }
+  } catch (error) {
+    console.error('Error handling interaction:', error);
+    const errorMessage = error.message || 'An unknown error occurred';
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: `❌ An error occurred: ${errorMessage}`, ephemeral: true });
+      } else {
+        await interaction.reply({ content: `❌ An error occurred: ${errorMessage}`, ephemeral: true });
+      }
+    } catch (replyError) {
+      console.error('Failed to send error message to user:', replyError);
+    }
+  }
+});
+
+// Handle DMs (for availability request follow-ups)
+client.on('messageCreate', async (message) => {
+  // Ignore bot messages
+  if (message.author.bot) return;
+
+  // Handle DMs separately
+  if (message.channel.type === ChannelType.DM) {
+    await handleDM(message);
+  }
+});
+
+async function handleDM(message) {
+  const db = getFirestore();
+  const userId = message.author.id;
+  
+  // Check if user has a pending availability update
+  try {
+    const pendingRef = db.collection('pendingAvailabilityUpdates').doc(userId);
+    const pendingDoc = await pendingRef.get();
+    
+    if (pendingDoc.exists) {
+      const pending = pendingDoc.data();
+      
+      // Check expiry (30 minutes)
+      const expiresAt = pending.expiresAt?.toDate();
+      if (expiresAt && Date.now() > expiresAt.getTime()) {
+        await pendingRef.delete();
+      } else {
+        // Parse availability from message
+        await handleAvailabilityInput(message, pending);
+        return;
+      }
+    }
+  } catch (error) {
+    console.error('Error checking pending availability:', error);
+  }
+  
+  // Check if this is a response to an availability request
+  const requestId = message.content.trim();
+  
+  // Check if it's a button response (availability request ID)
+  if (client.activeRequests.has(requestId)) {
+    await handleAvailabilityResponse(message, requestId);
+    return;
+  }
+
+  // Check if message contains availability data format
+  // Format: "Monday-0, Monday-1, Tuesday-14" etc.
+  const availabilityPattern = /([A-Za-z]+-\d+)/g;
+  const matches = message.content.match(availabilityPattern);
+  
+  if (matches && matches.length > 0) {
+    // Try to find active request by checking recent messages
+    // This is a fallback if button interaction didn't work
+    message.reply('📝 Please use the buttons from the availability request message to respond.');
+    return;
+  }
+
+  // Generic DM response
+  if (message.content.toLowerCase().includes('help')) {
+    const helpEmbed = new EmbedBuilder()
+      .setTitle('🤖 SwissPlay Bot Help')
+      .setDescription('I help manage team availability for scrims!')
+      .addFields(
+        { name: '📋 Set Your Availability', value: 'Use `/my-availability` to set when you can play.' },
+        { name: '👥 View Your Team', value: 'Use `/my-team` to see your team roster and schedule.' },
+        { name: '🔗 Linking Your Account', value: 'Ask your manager to add you using `/add-player` in the server.' }
+      )
+      .setColor(0x00ff00);
+    
+    message.reply({ embeds: [helpEmbed] });
+  } else {
+    // Friendly response for unrecognized DM
+    message.reply('👋 Hi! Use `/my-availability` to set your schedule, or type "help" for more commands.');
+  }
+}
+
+async function handleAvailabilityInput(message, pending) {
+  const db = getFirestore();
+  const input = message.content.toLowerCase().trim();
+  
+  // Parse availability from natural language
+  const parsed = parseAvailabilityText(input);
+  
+  if (!parsed || parsed.length === 0) {
+    await message.reply(
+      '❌ I couldn\'t understand that availability format.\n\n' +
+      '**Try formats like:**\n' +
+      '• "Weekdays 6-10pm"\n' +
+      '• "Monday Wednesday Friday 7-9pm"\n' +
+      '• "Weekends anytime"\n' +
+      '• "Tuesday Thursday 8-11pm"'
+    );
+    return;
+  }
+  
+  // Update all teams
+  for (const teamId of pending.teamIds) {
+    try {
+      const teamRef = db.collection('teams').doc(teamId);
+      const teamDoc = await teamRef.get();
+      
+      if (!teamDoc.exists) continue;
+      
+      const team = { id: teamDoc.id, ...teamDoc.data() };
+      const memberIndex = team.members.findIndex(m => m.discordId === message.author.id);
+      
+      if (memberIndex === -1) continue;
+      
+      const updatedMembers = [...team.members];
+      updatedMembers[memberIndex] = {
+        ...updatedMembers[memberIndex],
+        availability: parsed,
+        availabilityText: message.content.trim()
+      };
+      
+      await teamRef.update({ members: updatedMembers });
+    } catch (error) {
+      console.error(`Error updating team ${teamId}:`, error);
+    }
+  }
+  
+  // Delete pending update
+  await db.collection('pendingAvailabilityUpdates').doc(message.author.id).delete();
+  
+  const embed = new EmbedBuilder()
+    .setTitle('✅ Availability Updated!')
+    .setDescription(`Your availability: **${message.content.trim()}**`)
+    .addFields({ name: 'Updated for', value: `${pending.teamIds.length} team(s)`, inline: true })
+    .setColor(0x00ff00)
+    .setFooter({ text: 'Your manager can now see your availability.' });
+  
+  await message.reply({ embeds: [embed] });
+}
+
+function parseAvailabilityText(text) {
+  // Simple parser for common availability patterns
+  const slots = [];
+  const lowerText = text.toLowerCase();
+  
+  // Day mapping
+  const dayMap = {
+    'monday': 'Monday', 'mon': 'Monday',
+    'tuesday': 'Tuesday', 'tue': 'Tuesday', 'tues': 'Tuesday',
+    'wednesday': 'Wednesday', 'wed': 'Wednesday',
+    'thursday': 'Thursday', 'thu': 'Thursday', 'thur': 'Thursday', 'thurs': 'Thursday',
+    'friday': 'Friday', 'fri': 'Friday',
+    'saturday': 'Saturday', 'sat': 'Saturday',
+    'sunday': 'Sunday', 'sun': 'Sunday'
+  };
+  
+  const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const weekends = ['Saturday', 'Sunday'];
+  
+  let targetDays = [];
+  
+  // Check for "weekdays" or "weekends"
+  if (lowerText.includes('weekday')) {
+    targetDays = weekdays;
+  } else if (lowerText.includes('weekend')) {
+    targetDays = weekends;
+  } else if (lowerText.includes('anytime') || lowerText.includes('any time') || lowerText.includes('always')) {
+    targetDays = allDays;
+  } else {
+    // Look for specific days
+    for (const [key, day] of Object.entries(dayMap)) {
+      if (lowerText.includes(key)) {
+        if (!targetDays.includes(day)) targetDays.push(day);
+      }
+    }
+  }
+  
+  // If no days found, default to all days
+  if (targetDays.length === 0) {
+    targetDays = allDays;
+  }
+  
+  // Parse time range (e.g., "6-10pm", "18:00-22:00", "after 6pm")
+  let startHour = 18; // Default 6pm
+  let endHour = 22;   // Default 10pm
+  
+  // Match patterns like "6-10pm", "6pm-10pm", "18:00-22:00"
+  const timeRangeMatch = lowerText.match(/(\d{1,2})(?::00)?(?:am|pm)?\s*-\s*(\d{1,2})(?::00)?(?:am|pm)?/);
+  if (timeRangeMatch) {
+    startHour = parseInt(timeRangeMatch[1]);
+    endHour = parseInt(timeRangeMatch[2]);
+    
+    // Handle PM conversion
+    if (lowerText.includes('pm') && startHour < 12) startHour += 12;
+    if (lowerText.includes('pm') && endHour < 12) endHour += 12;
+  } else {
+    // Match "after 6pm" or "after 18:00"
+    const afterMatch = lowerText.match(/after\s+(\d{1,2})(?::00)?(?:am|pm)?/);
+    if (afterMatch) {
+      startHour = parseInt(afterMatch[1]);
+      if (lowerText.includes('pm') && startHour < 12) startHour += 12;
+      endHour = 23; // Until 11pm
+    }
+    
+    // Match "until 10pm" or "before 10pm"
+    const untilMatch = lowerText.match(/(?:until|before)\s+(\d{1,2})(?::00)?(?:am|pm)?/);
+    if (untilMatch) {
+      endHour = parseInt(untilMatch[1]);
+      if (lowerText.includes('pm') && endHour < 12) endHour += 12;
+      startHour = 18; // Default start
+    }
+    
+    // "anytime" means all day
+    if (lowerText.includes('anytime') || lowerText.includes('any time')) {
+      startHour = 0;
+      endHour = 23;
+    }
+  }
+  
+  // Create availability slots
+  for (const day of targetDays) {
+    slots.push({ day, startHour, endHour });
+  }
+  
+  return slots;
+}
+
+async function handleAddPlayerSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const db = getFirestore();
+    const managerDiscordId = interaction.user.id;
+    const playerUser = interaction.options.getUser('player');
+    
+    if (!playerUser) {
+      await interaction.followUp({ content: '❌ Please specify a player to add.', ephemeral: true });
+      return;
+    }
+    
+    // Check if user is a verified manager
+    const managerTeams = await getManagerTeams(db, managerDiscordId);
+    
+    if (managerTeams.length === 0) {
+      await interaction.followUp({
+        content: '❌ You are not a verified manager.\n\nPlease verify your Discord account on the website first (Team Management → Settings → "Verify Discord" button).',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // Check if player is already on any team in this guild
+    const guildId = interaction.guild?.id;
+    if (!guildId) {
+      await interaction.followUp({ content: '❌ This command must be run in a server, not DMs.', ephemeral: true });
+      return;
+    }
+    
+    const allTeams = await db.collection('teams').where('discordGuildId', '==', guildId).get();
+    const playerExistingTeam = allTeams.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .find(t => t.members && t.members.some(m => m.discordId === playerUser.id));
+    
+    if (playerExistingTeam) {
+      await interaction.followUp({
+        content: `❌ ${playerUser.username} is already on **${playerExistingTeam.name}**. Remove them first if you want to move them to another team.`,
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // If manager has only one team, add to it directly
+    if (managerTeams.length === 1) {
+      await addPlayerToTeam(db, managerTeams[0], playerUser);
+      await interaction.followUp({
+        content: `✅ Added ${playerUser.username} to **${managerTeams[0].name}** as a Player!\n\nThey can now use \`/my-availability\` and \`/my-team\` to see their team info.`,
+        ephemeral: true
+      });
+      
+      // Send welcome DM to player
+      try {
+        const welcomeEmbed = new EmbedBuilder()
+          .setTitle('🎮 Welcome to the Team!')
+          .setDescription(`You've been added to **${managerTeams[0].name}** by ${interaction.user.username}!`)
+          .addFields(
+            { name: 'Set Your Availability', value: 'Use `/my-availability` to let your manager know when you can play.' },
+            { name: 'View Team Info', value: 'Use `/my-team` to see your team roster and schedule.' }
+          )
+          .setColor(0x00ff00);
+        
+        await playerUser.send({ embeds: [welcomeEmbed] });
+      } catch (dmError) {
+        console.log(`Could not DM ${playerUser.username}:`, dmError.message);
+      }
+      
+      return;
+    }
+    
+    // Manager has multiple teams - show picker
+    const sessionCode = Math.random().toString(36).slice(2, 10);
+    await db.collection('addPlayerSessions').doc(sessionCode).set({
+      managerId: managerDiscordId,
+      playerId: playerUser.id,
+      playerUsername: playerUser.username,
+      guildId,
+      teamIds: managerTeams.map(t => t.id),
+      createdAt: new Date()
+    });
+    
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`add_player_team_${sessionCode}`)
+      .setPlaceholder('Choose which team to add them to')
+      .addOptions(
+        managerTeams.slice(0, 25).map(t => ({
+          label: t.name?.slice(0, 100) || t.id,
+          value: t.id
+        }))
+      );
+    
+    const row = new ActionRowBuilder().addComponents(menu);
+    await interaction.followUp({
+      content: `Select which team to add **${playerUser.username}** to:`,
+      components: [row],
+      ephemeral: true
+    });
+    
+  } catch (error) {
+    console.error('Error in handleAddPlayerSlash:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function handleRemovePlayerSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const db = getFirestore();
+    const managerDiscordId = interaction.user.id;
+    const playerUser = interaction.options.getUser('player');
+    
+    if (!playerUser) {
+      await interaction.followUp({ content: '❌ Please specify a player to remove.', ephemeral: true });
+      return;
+    }
+    
+    // Check if user is a verified manager
+    const managerTeams = await getManagerTeams(db, managerDiscordId);
+    
+    if (managerTeams.length === 0) {
+      await interaction.followUp({
+        content: '❌ You are not a verified manager. Please verify on the website first.',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // Find which team the player is on (among manager's teams)
+    const playerTeam = managerTeams.find(t => 
+      t.members && t.members.some(m => m.discordId === playerUser.id)
+    );
+    
+    if (!playerTeam) {
+      await interaction.followUp({
+        content: `❌ ${playerUser.username} is not on any of your teams.`,
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // Prevent removing the last owner
+    const player = playerTeam.members.find(m => m.discordId === playerUser.id);
+    if (player?.roles?.includes('Owner')) {
+      const ownerCount = playerTeam.members.filter(m => m.roles?.includes('Owner')).length;
+      if (ownerCount <= 1) {
+        await interaction.followUp({
+          content: '❌ Cannot remove the last owner. Transfer ownership first or delete the team.',
+          ephemeral: true
+        });
+        return;
+      }
+    }
+    
+    // Remove player
+    const updatedMembers = playerTeam.members.filter(m => m.discordId !== playerUser.id);
+    
+    // Also remove from managerDiscordIds if they were a manager
+    let managerDiscordIds = playerTeam.managerDiscordIds || [];
+    managerDiscordIds = managerDiscordIds.filter(id => id !== playerUser.id);
+    
+    await db.collection('teams').doc(playerTeam.id).update({
+      members: updatedMembers,
+      managerDiscordIds
+    });
+    
+    await interaction.followUp({
+      content: `✅ Removed ${playerUser.username} from **${playerTeam.name}**.`,
+      ephemeral: true
+    });
+    
+    // Notify player
+    try {
+      await playerUser.send(`You've been removed from **${playerTeam.name}** by ${interaction.user.username}.`);
+    } catch (dmError) {
+      console.log(`Could not DM ${playerUser.username}:`, dmError.message);
+    }
+    
+  } catch (error) {
+    console.error('Error in handleRemovePlayerSlash:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function handleScheduleScrimSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const db = getFirestore();
+    const managerDiscordId = interaction.user.id;
+    const dateStr = interaction.options.getString('date');
+    const timeStr = interaction.options.getString('time');
+    const notes = interaction.options.getString('notes') || '';
+    
+    // Check if user is a verified manager
+    const managerTeams = await getManagerTeams(db, managerDiscordId);
+    
+    if (managerTeams.length === 0) {
+      await interaction.followUp({
+        content: '❌ You are not a verified manager. Please verify on the website first.',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // Parse date (support "tomorrow", "monday", "2024-03-15")
+    const scrimDate = parseFlexibleDate(dateStr);
+    const scrimTime = parseFlexibleTime(timeStr);
+    
+    if (!scrimDate || !scrimTime) {
+      await interaction.followUp({
+        content: '❌ Invalid date or time format.\n\n**Examples:**\n• Date: "tomorrow", "monday", "2024-03-15"\n• Time: "7pm", "19:00", "7:30pm"',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // If multiple teams, ask which one
+    if (managerTeams.length > 1) {
+      const sessionCode = Math.random().toString(36).slice(2, 10);
+      await db.collection('scheduleScrimSessions').doc(sessionCode).set({
+        managerId: managerDiscordId,
+        guildId: interaction.guild?.id,
+        teamIds: managerTeams.map(t => t.id),
+        date: scrimDate,
+        time: scrimTime,
+        notes,
+        createdAt: new Date()
+      });
+      
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(`schedule_scrim_team_${sessionCode}`)
+        .setPlaceholder('Choose which team this scrim is for')
+        .addOptions(
+          managerTeams.slice(0, 25).map(t => ({
+            label: t.name?.slice(0, 100) || t.id,
+            value: t.id
+          }))
+        );
+      
+      const row = new ActionRowBuilder().addComponents(menu);
+      await interaction.followUp({
+        content: `Select which team to schedule the scrim for:\n📅 **${scrimDate}** at **${scrimTime}**`,
+        components: [row],
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // Single team - schedule directly
+    await scheduleScrimForTeam(db, interaction.client, managerTeams[0], scrimDate, scrimTime, notes, interaction.user);
+    
+    await interaction.followUp({
+      content: `✅ Scrim scheduled for **${scrimDate}** at **${scrimTime}**!\n\nPolling your team members via DM...`,
+      ephemeral: true
+    });
+    
+  } catch (error) {
+    console.error('Error in handleScheduleScrimSlash:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function handleFindTimeSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const db = getFirestore();
+    const managerDiscordId = interaction.user.id;
+    const period = interaction.options.getString('period') || 'week';
+    
+    // Check if user is a verified manager
+    const managerTeams = await getManagerTeams(db, managerDiscordId);
+    
+    if (managerTeams.length === 0) {
+      await interaction.followUp({
+        content: '❌ You are not a verified manager. Please verify on the website first.',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    // Use first team (or we could add team picker)
+    const team = managerTeams[0];
+    
+    // Analyze availability
+    const bestTimes = analyzeBestTimes(team, period);
+    
+    if (bestTimes.length === 0) {
+      await interaction.followUp({
+        content: '❌ No common availability found. Ask your players to set their availability using `/my-availability`.',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 Best Times for ${team.name}`)
+      .setDescription(`Analysis for: **${getPeriodDescription(period)}**\n\nTop times with most player availability:`)
+      .setColor(0x7289da);
+    
+    bestTimes.slice(0, 5).forEach((slot, i) => {
+      const percentage = ((slot.availableCount / team.members.length) * 100).toFixed(0);
+      embed.addFields({
+        name: `${i + 1}. ${slot.day} ${slot.startHour}:00 - ${slot.endHour}:00`,
+        value: `${slot.availableCount}/${team.members.length} players (${percentage}%)`,
+        inline: false
+      });
+    });
+    
+    embed.setFooter({ text: 'Use /schedule-scrim to schedule a scrim at one of these times!' });
+    
+    await interaction.followUp({ embeds: [embed], ephemeral: true });
+    
+  } catch (error) {
+    console.error('Error in handleFindTimeSlash:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function getManagerTeams(db, discordId) {
+  try {
+    // Use optimized query for teams where this Discord ID is in managerDiscordIds
+    const snapshot = await db.collection('teams')
+      .where('managerDiscordIds', 'array-contains', discordId)
+      .get();
+    
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error getting manager teams:', error);
+    return [];
+  }
+}
+
+async function addPlayerToTeam(db, team, user) {
+  // Check if player already exists
+  const existingMember = team.members.find(m => m.discordId === user.id);
+  
+  if (existingMember) {
+    throw new Error('Player is already on this team.');
+  }
+  
+  const newMember = {
+    discordId: user.id,
+    discordUsername: user.username,
+    name: user.globalName || user.username,
+    roles: ['Player'],
+    availability: [],
+    availabilityText: 'Not set'
+  };
+  
+  const updatedMembers = [...team.members, newMember];
+  
+  await db.collection('teams').doc(team.id).update({
+    members: updatedMembers
+  });
+}
+
+async function scheduleScrimForTeam(db, client, team, date, time, notes, managerUser) {
+  // Create scrim poll document
+  const pollRef = await db.collection('scrimPolls').add({
+    teamId: team.id,
+    teamName: team.name,
+    managerId: managerUser.id,
+    managerUsername: managerUser.username,
+    date,
+    time,
+    notes,
+    responses: {},
+    createdAt: new Date(),
+    status: 'active'
+  });
+  
+  const pollId = pollRef.id;
+  
+  // Send DM to each team member
+  const members = team.members.filter(m => m.discordId);
+  let successCount = 0;
+  
+  for (const member of members) {
+    try {
+      const user = await client.users.fetch(member.discordId);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('📅 Scrim Scheduled!')
+        .setDescription(`${managerUser.username} scheduled a scrim for **${team.name}**`)
+        .addFields(
+          { name: 'Date', value: date, inline: true },
+          { name: 'Time', value: time, inline: true }
+        )
+        .setColor(0x7289da);
+      
+      if (notes) {
+        embed.addFields({ name: 'Notes', value: notes, inline: false });
+      }
+      
+      embed.addFields({
+        name: 'Can you make it?',
+        value: 'Click a button below to respond:'
+      });
+      
+      const row = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(`scrim_yes_${pollId}`)
+            .setLabel('✅ Yes')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`scrim_no_${pollId}`)
+            .setLabel('❌ No')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`scrim_maybe_${pollId}`)
+            .setLabel('⏰ Maybe')
+            .setStyle(ButtonStyle.Secondary)
+        );
+      
+      await user.send({ embeds: [embed], components: [row] });
+      successCount++;
+    } catch (error) {
+      console.error(`Failed to DM ${member.discordId}:`, error.message);
+    }
+  }
+  
+  // Send summary to manager
+  try {
+    const summaryEmbed = new EmbedBuilder()
+      .setTitle('✅ Scrim Poll Sent')
+      .setDescription(`Sent availability poll to ${successCount}/${members.length} team members`)
+      .addFields(
+        { name: 'Date', value: date, inline: true },
+        { name: 'Time', value: time, inline: true },
+        { name: 'Poll ID', value: pollId, inline: false }
+      )
+      .setColor(0x00ff00)
+      .setFooter({ text: 'You\'ll receive DMs as players respond.' });
+    
+    await managerUser.send({ embeds: [summaryEmbed] });
+  } catch (error) {
+    console.log('Could not DM manager:', error.message);
+  }
+}
+
+function parseFlexibleDate(dateStr) {
+  const lower = dateStr.toLowerCase().trim();
+  const now = new Date();
+  
+  if (lower === 'today') {
+    return now.toISOString().split('T')[0];
+  }
+  
+  if (lower === 'tomorrow') {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  }
+  
+  // Day names (e.g., "monday")
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayIndex = dayNames.indexOf(lower);
+  
+  if (dayIndex !== -1) {
+    const target = new Date(now);
+    const currentDay = target.getDay();
+    let daysToAdd = dayIndex - currentDay;
+    if (daysToAdd <= 0) daysToAdd += 7; // Next occurrence
+    target.setDate(target.getDate() + daysToAdd);
+    return target.toISOString().split('T')[0];
+  }
+  
+  // ISO date (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+  
+  return null;
+}
+
+function parseFlexibleTime(timeStr) {
+  const lower = timeStr.toLowerCase().trim();
+  
+  // Match "7pm", "7:30pm", "19:00", "19:30"
+  const timeMatch = lower.match(/(\d{1,2})(?::(\d{2}))?(?:am|pm)?/);
+  if (!timeMatch) return null;
+  
+  let hour = parseInt(timeMatch[1]);
+  const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+  
+  // Handle AM/PM
+  if (lower.includes('pm') && hour < 12) {
+    hour += 12;
+  } else if (lower.includes('am') && hour === 12) {
+    hour = 0;
+  }
+  
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+}
+
+function analyzeBestTimes(team, period) {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const hours = Array.from({ length: 24 }, (_, i) => i); // 0-23
+  
+  const slots = [];
+  
+  // For each day and hour, count how many players are available
+  for (const day of days) {
+    for (const hour of hours) {
+      if (hour < 12 || hour > 23) continue; // Only check reasonable scrim hours (noon-11pm)
+      
+      let availableCount = 0;
+      
+      for (const member of team.members) {
+        if (!Array.isArray(member.availability)) continue;
+        
+        const isAvailable = member.availability.some(slot => 
+          slot.day === day && 
+          hour >= slot.startHour && 
+          hour < slot.endHour
+        );
+        
+        if (isAvailable) availableCount++;
+      }
+      
+      if (availableCount > 0) {
+        slots.push({
+          day,
+          startHour: hour,
+          endHour: hour + 2, // 2-hour window
+          availableCount
+        });
+      }
+    }
+  }
+  
+  // Sort by availability count (descending)
+  slots.sort((a, b) => b.availableCount - a.availableCount);
+  
+  return slots;
+}
+
+function getPeriodDescription(period) {
+  switch (period) {
+    case 'week': return 'Next 7 days';
+    case 'two-weeks': return 'Next 14 days';
+    case 'this-week': return 'This week';
+    default: return 'Next 7 days';
+  }
+}
+
+function setupScrimReminderSystem(client) {
+  console.log('⏰ Setting up scrim reminder system...');
+  
+  // Check for upcoming scrims every 5 minutes
+  setInterval(async () => {
+    try {
+      await checkAndSendScrimReminders(client);
+    } catch (error) {
+      console.error('Error in scrim reminder system:', error);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+  
+  // Also run immediately
+  setTimeout(() => checkAndSendScrimReminders(client), 10000);
+  
+  console.log('✅ Scrim reminder system active');
+}
+
+async function checkAndSendScrimReminders(client) {
+  const db = getFirestore();
+  const now = new Date();
+  
+  try {
+    // Get active scrim polls
+    const pollsSnapshot = await db.collection('scrimPolls')
+      .where('status', '==', 'active')
+      .get();
+    
+    for (const pollDoc of pollsSnapshot.docs) {
+      const poll = { id: pollDoc.id, ...pollDoc.data() };
+      
+      // Parse scrim date and time
+      const scrimDateTime = parseScrimDateTime(poll.date, poll.time);
+      if (!scrimDateTime) continue;
+      
+      const timeUntilScrim = scrimDateTime - now;
+      const hoursUntil = timeUntilScrim / (1000 * 60 * 60);
+      
+      // Send 24-hour reminder
+      if (hoursUntil <= 24 && hoursUntil > 23 && !poll.reminder24hSent) {
+        await sendScrimReminder(client, db, poll, '24 hours', pollDoc);
+      }
+      
+      // Send 1-hour reminder
+      if (hoursUntil <= 1 && hoursUntil > 0.5 && !poll.reminder1hSent) {
+        await sendScrimReminder(client, db, poll, '1 hour', pollDoc);
+      }
+      
+      // Auto-close poll after scrim time passes
+      if (hoursUntil < -2) { // 2 hours after scrim
+        await pollDoc.ref.update({ status: 'completed' });
+      }
+    }
+  } catch (error) {
+    console.error('Error checking scrim reminders:', error);
+  }
+}
+
+async function sendScrimReminder(client, db, poll, timeframe, pollDoc) {
+  const teamDoc = await db.collection('teams').doc(poll.teamId).get();
+  if (!teamDoc.exists) return;
+  
+  const team = teamDoc.data();
+  const responses = poll.responses || {};
+  
+  // Get players who said yes
+  const confirmedPlayerIds = Object.entries(responses)
+    .filter(([_, r]) => r.response === 'Available')
+    .map(([id, _]) => id);
+  
+  // Send reminder to confirmed players
+  for (const playerId of confirmedPlayerIds) {
+    try {
+      const user = await client.users.fetch(playerId);
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`⏰ Scrim Reminder - ${timeframe}!`)
+        .setDescription(`Your scrim for **${team.name || poll.teamName}** is coming up!`)
+        .addFields(
+          { name: 'Date', value: poll.date, inline: true },
+          { name: 'Time', value: poll.time, inline: true }
+        )
+        .setColor(0xffaa00);
+      
+      if (poll.notes) {
+        embed.addFields({ name: 'Notes', value: poll.notes, inline: false });
+      }
+      
+      await user.send({ embeds: [embed] });
+    } catch (error) {
+      console.log(`Could not send reminder to ${playerId}:`, error.message);
+    }
+  }
+  
+  // Mark reminder as sent
+  if (timeframe === '24 hours') {
+    await pollDoc.ref.update({ reminder24hSent: true });
+  } else if (timeframe === '1 hour') {
+    await pollDoc.ref.update({ reminder1hSent: true });
+  }
+  
+  console.log(`⏰ Sent ${timeframe} reminder for scrim ${poll.id} (${confirmedPlayerIds.length} players)`);
+}
+
+function parseScrimDateTime(dateStr, timeStr) {
+  try {
+    // Parse date (format: YYYY-MM-DD)
+    const dateParts = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (!dateParts) return null;
+    
+    // Parse time (format: HH:MM)
+    const timeParts = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (!timeParts) return null;
+    
+    const year = parseInt(dateParts[1]);
+    const month = parseInt(dateParts[2]) - 1; // JS months are 0-indexed
+    const day = parseInt(dateParts[3]);
+    const hour = parseInt(timeParts[1]);
+    const minute = parseInt(timeParts[2]);
+    
+    return new Date(year, month, day, hour, minute);
+  } catch (error) {
+    return null;
+  }
+}
+
+async function handleScrimPollResponse(interaction, pollId, responseType) {
+  const db = getFirestore();
+  const playerId = interaction.user.id;
+  
+  try {
+    // Defer reply to prevent timeout
+    await interaction.deferReply({ ephemeral: true });
+    
+    // Get poll document
+    const pollRef = db.collection('scrimPolls').doc(pollId);
+    const pollDoc = await pollRef.get();
+    
+    if (!pollDoc.exists) {
+      await interaction.followUp({ content: '❌ Poll not found or expired.', ephemeral: true });
+      return;
+    }
+    
+    const poll = pollDoc.data();
+    
+    // Record response
+    const responses = poll.responses || {};
+    
+    let responseText = '';
+    let responseEmoji = '';
+    
+    switch (responseType) {
+      case 'yes':
+        responseText = 'Available';
+        responseEmoji = '✅';
+        break;
+      case 'no':
+        responseText = 'Unavailable';
+        responseEmoji = '❌';
+        break;
+      case 'maybe':
+        responseText = 'Maybe';
+        responseEmoji = '⏰';
+        break;
+    }
+    
+    responses[playerId] = {
+      username: interaction.user.username,
+      response: responseText,
+      respondedAt: new Date()
+    };
+    
+    await pollRef.update({ responses });
+    
+    // Confirm to player
+    await interaction.followUp({
+      content: `${responseEmoji} Response recorded: **${responseText}**\n\nYour manager will be notified.`,
+      ephemeral: true
+    });
+    
+    // Notify manager
+    try {
+      const manager = await interaction.client.users.fetch(poll.managerId);
+      
+      // Calculate response summary
+      const totalResponses = Object.keys(responses).length;
+      const yesCount = Object.values(responses).filter(r => r.response === 'Available').length;
+      const noCount = Object.values(responses).filter(r => r.response === 'Unavailable').length;
+      const maybeCount = Object.values(responses).filter(r => r.response === 'Maybe').length;
+      
+      const notifyEmbed = new EmbedBuilder()
+        .setTitle('📝 Scrim Poll Response')
+        .setDescription(`${interaction.user.username} responded: **${responseText}**`)
+        .addFields(
+          { name: 'Scrim', value: `${poll.date} at ${poll.time}`, inline: false },
+          { name: 'Response Summary', value: `✅ Yes: ${yesCount} | ❌ No: ${noCount} | ⏰ Maybe: ${maybeCount}`, inline: false },
+          { name: 'Total Responses', value: `${totalResponses} player(s)`, inline: true }
+        )
+        .setColor(responseType === 'yes' ? 0x00ff00 : responseType === 'no' ? 0xff0000 : 0xffaa00);
+      
+      await manager.send({ embeds: [notifyEmbed] });
+    } catch (error) {
+      console.error('Failed to notify manager:', error);
+    }
+    
+  } catch (error) {
+    console.error('Error handling scrim poll response:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+// Start HTTP server for Cloud Run health checks FIRST
+
+// Slash command handlers
+async function handleAvailabilityRequestSlash(interaction) {
+  try {
+    await interaction.deferReply(); // Defer since this might take a moment
+    
+    const playersOption = interaction.options.getString('players');
+    const dateOption = interaction.options.getString('date');
+    const timeOption = interaction.options.getString('time');
+    
+    // Parse mentions from the players string if provided
+    const args = [];
+    const mentionedUserIds = [];
+    
+    if (playersOption) {
+      // Extract user IDs from mentions (format: <@123456789> or <@!123456789>)
+      const mentionRegex = /<@!?(\d+)>/g;
+      let match;
+      while ((match = mentionRegex.exec(playersOption)) !== null) {
+        mentionedUserIds.push(match[1]);
+        args.push(`<@${match[1]}>`);
+      }
+      
+      // Check if "all" is in the string
+      if (playersOption.toLowerCase().includes('all')) {
+        args.push('all');
+      }
+    }
+    
+    if (dateOption) args.push(dateOption);
+    if (timeOption) args.push(timeOption);
+    
+    // Fetch mentioned users to create proper mentions map
+    const mentionedUsers = new Map();
+    for (const userId of mentionedUserIds) {
+      try {
+        const user = await interaction.client.users.fetch(userId);
+        mentionedUsers.set(userId, user);
+      } catch (error) {
+        console.error(`Failed to fetch user ${userId}:`, error);
+      }
+    }
+    
+    // Convert interaction to message-like format for compatibility
+    const fakeMessage = {
+      author: interaction.user,
+      client: interaction.client,
+      guild: interaction.guild,
+      channel: interaction.channel,
+      mentions: {
+        users: mentionedUsers
+      },
+      reply: async (content) => {
+        if (interaction.deferred) {
+          return await interaction.followUp(typeof content === 'string' ? { content } : content);
+        }
+        return await interaction.reply(typeof content === 'string' ? { content, ephemeral: false } : { ...content, ephemeral: false });
+      }
+    };
+    
+    await handleAvailabilityRequest(fakeMessage, args);
+  } catch (error) {
+    console.error('Error in handleAvailabilityRequestSlash:', error);
+    if (interaction.deferred) {
+      await interaction.followUp({ 
+        content: `❌ An error occurred: ${error.message}`, 
+        ephemeral: true 
+      });
+    } else {
+      await interaction.reply({ 
+        content: `❌ An error occurred: ${error.message}`, 
+        ephemeral: true 
+      });
+    }
+  }
+}
+
+async function handleLinkDiscordSlash(interaction) {
+  try {
+    // Defer immediately to prevent timeout (3s limit)
+    await interaction.deferReply({ ephemeral: true });
+    console.log(`🔗 Processing /link command for user ${interaction.user.id}`);
+    
+    const email = interaction.options.getString('email');
+    const playerOption = interaction.options.getUser('player');
+    const playerUser = playerOption ?? interaction.user;
+
+    if (!email || typeof email !== 'string' || email.trim().length === 0) {
+      await interaction.followUp({ content: '❌ Missing email. Usage: `/link email:you@example.com`', ephemeral: true });
+      return;
+    }
+    
+    // Self-link/join flow (no player specified): let the user link themselves by email, and choose a team if needed.
+    if (!playerOption) {
+      await handleSelfLinkOrJoinSlash(interaction, email.trim());
+      return;
+    }
+
+    // Create a robust fake message object
+    const fakeMessage = {
+      author: interaction.user,
+      client: interaction.client,
+      guild: interaction.guild,
+      channel: interaction.channel,
+      mentions: {
+        users: new Map([[playerUser.id, playerUser]])
+      },
+      reply: async (content) => {
+        try {
+          // If content is just a string, wrap it
+          const replyOptions = typeof content === 'string' ? { content } : content;
+          
+          // Always use followUp since we already deferred
+          if (interaction.deferred || interaction.replied) {
+            return await interaction.followUp(replyOptions);
+          }
+          
+          // Fallback (shouldn't be reached if deferred correctly)
+          return await interaction.reply(replyOptions);
+        } catch (replyError) {
+          console.error('Failed to send reply in link command:', replyError);
+          // Try one last time with a simple string if object failed
+          try {
+             if (typeof content !== 'string') {
+               await interaction.followUp({ content: '❌ An error occurred while generating the response.', ephemeral: true });
+             }
+          } catch (e) {
+            // Give up
+            console.error('Critical failure in link command reply:', e);
+          }
+        }
+      }
+    };
+    
+    // Set a timeout to ensure we don't hang indefinitely
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Operation timed out after 30 seconds')), 30000);
+    });
+
+    // Race the command against the timeout
+    await Promise.race([
+      handleLinkDiscord(fakeMessage, [`<@${playerUser.id}>`, email]),
+      timeoutPromise
+    ]);
+
+  } catch (error) {
+    console.error('Error in handleLinkDiscordSlash:', error);
+    try {
+      const errorMessage = `❌ An error occurred: ${error.message || 'Unknown error'}`;
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp({ content: errorMessage, ephemeral: true });
+      } else {
+        await interaction.reply({ content: errorMessage, ephemeral: true });
+      }
+    } catch (finalError) {
+      console.error('Failed to send error message to user:', finalError);
+    }
+  }
+}
+
+async function handleSelfLinkOrJoinSlash(interaction, email) {
+  let db;
+  try {
+    db = getFirestore();
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+    await interaction.followUp({ content: '❌ Firebase is not properly configured. Please check the server logs.', ephemeral: true });
+    return;
+  }
+
+  const guildId = interaction.guild?.id;
+  if (!guildId) {
+    await interaction.followUp({ content: '❌ This command must be run in a server (not in DMs).', ephemeral: true });
+    return;
+  }
+
+  // 1) Manager bootstrap: if this email is a Manager/Owner on any team, link this Discord account as that manager.
+  const managerLinkedTeams = await linkManagerTeamsByEmail({
+    db,
+    guildId,
+    email,
+    user: interaction.user
+  });
+
+  if (managerLinkedTeams.length > 0) {
+      await interaction.followUp({ 
+      content:
+        `✅ Linked you as a manager for **${managerLinkedTeams.length}** team(s) in this server.\n` +
+        `Now players can run \`/link email:their@email.com\` in this server and choose a team to join.`,
+        ephemeral: true 
+      });
+    return;
+  }
+
+  // 2) Player join/link: list teams that are activated for this server
+  const teams = await getTeamsForGuild(db, guildId);
+  if (teams.length === 0) {
+    await interaction.followUp({
+      content:
+        '❌ No teams are set up for this Discord server yet.\n' +
+        'Ask a manager to run `/link email:manager@email.com` first to activate their team(s) for this server.',
+        ephemeral: true 
+      });
+    return;
+  }
+
+  if (teams.length === 1) {
+    await linkOrJoinTeamByEmail({ db, teamId: teams[0].id, guildId, email, user: interaction.user });
+    await interaction.followUp({ content: `✅ Linked! You’re now connected to **${teams[0].name}**.`, ephemeral: true });
+    return;
+  }
+
+  // 3) Multiple teams: create a short-lived session and show a picker
+  const sessionCode = Math.random().toString(36).slice(2, 10);
+  await db.collection('discordLinkSessions').doc(sessionCode).set({
+    userId: interaction.user.id,
+    guildId,
+    email,
+    teamIds: teams.map(t => t.id),
+    createdAt: new Date()
+  });
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`join_team_${sessionCode}`)
+    .setPlaceholder('Choose a team to join')
+    .addOptions(
+      teams.slice(0, 25).map(t => ({
+        label: t.name?.slice(0, 100) || t.id,
+        value: t.id
+      }))
+    );
+
+  const row = new ActionRowBuilder().addComponents(menu);
+  await interaction.followUp({
+    content: 'Select the team you want to link/join with this email.',
+    components: [row],
+    ephemeral: true
+  });
+}
+
+async function getTeamsForGuild(db, guildId) {
+  try {
+    const snapshot = await db.collection('teams').where('discordGuildId', '==', guildId).get();
+    const teams = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Only show teams that have at least one linked manager (helps avoid listing random/inactive teams)
+    return teams.filter(t => Array.isArray(t.managerDiscordIds) && t.managerDiscordIds.length > 0);
+  } catch (error) {
+    console.error('Error fetching teams for guild:', error);
+    return [];
+  }
+}
+
+async function linkManagerTeamsByEmail({ db, guildId, email, user }) {
+  const emailLower = email.toLowerCase();
+  const snapshot = await db.collection('teams').get();
+  const linked = [];
+
+  for (const doc of snapshot.docs) {
+    const team = { id: doc.id, ...doc.data() };
+    if (!Array.isArray(team.members)) continue;
+
+    const memberIndex = team.members.findIndex(m => typeof m?.email === 'string' && m.email.toLowerCase() === emailLower);
+
+    if (memberIndex === -1) continue;
+
+    const member = team.members[memberIndex];
+    const isManagerByRole = member?.roles?.includes('Manager') || member?.roles?.includes('Owner');
+    const isTeamOwner = Boolean(member?.uid && team?.ownerId && member.uid === team.ownerId);
+
+    // Allow "bootstrap" linking if the email belongs to the team owner,
+    // even if roles are missing / they are also a Player.
+    if (!isManagerByRole && !isTeamOwner) {
+      continue;
+    }
+
+    // Update member with Discord info
+    const updatedMembers = [...team.members];
+    updatedMembers[memberIndex] = {
+      ...updatedMembers[memberIndex],
+      discordId: user.id,
+      discordUsername: user.username
+    };
+
+    const managerDiscordIds = Array.isArray(team.managerDiscordIds) ? [...team.managerDiscordIds] : [];
+    if (!managerDiscordIds.includes(user.id)) managerDiscordIds.push(user.id);
+
+    // "Activate" this team for this Discord server
+    await db.collection('teams').doc(team.id).update({
+      members: updatedMembers,
+      managerDiscordIds,
+      discordGuildId: guildId
+    });
+
+    linked.push({ id: team.id, name: team.name || team.id });
+  }
+
+  return linked;
+}
+
+async function linkOrJoinTeamByEmail({ db, teamId, guildId, email, user }) {
+  const teamRef = db.collection('teams').doc(teamId);
+  const teamDoc = await teamRef.get();
+
+  if (!teamDoc.exists) {
+    throw new Error('Team not found.');
+  }
+
+  const team = { id: teamDoc.id, ...teamDoc.data() };
+  if (team.discordGuildId && team.discordGuildId !== guildId) {
+    throw new Error('This team is not configured for the current Discord server.');
+  }
+
+  const emailLower = email.toLowerCase();
+  const members = Array.isArray(team.members) ? [...team.members] : [];
+
+  const existingIndex = members.findIndex(m => typeof m?.email === 'string' && m.email.toLowerCase() === emailLower);
+
+  if (existingIndex !== -1) {
+    members[existingIndex] = {
+      ...members[existingIndex],
+      discordId: user.id,
+      discordUsername: user.username
+    };
+  } else {
+    members.push({
+      email,
+      discordId: user.id,
+      discordUsername: user.username,
+      name: user.globalName || user.username,
+      roles: ['Player'],
+      availability: []
+    });
+  }
+
+  await teamRef.update({ members });
+}
+
+async function handleListPlayersSlash(interaction) {
+  try {
+    await interaction.deferReply(); // Defer immediately to prevent timeout
+    
+    const fakeMessage = {
+      author: interaction.user,
+      client: interaction.client,
+      guild: interaction.guild,
+      channel: interaction.channel,
+      reply: async (content) => {
+        if (interaction.deferred) {
+          return await interaction.followUp(typeof content === 'string' ? { content } : content);
+        }
+        return await interaction.reply(typeof content === 'string' ? { content, ephemeral: false } : { ...content, ephemeral: false });
+      }
+    };
+    
+    await handleListPlayers(fakeMessage);
+  } catch (error) {
+    console.error('Error in handleListPlayersSlash:', error);
+    if (interaction.deferred) {
+      await interaction.followUp({ 
+        content: `❌ An error occurred: ${error.message}`, 
+        ephemeral: true 
+      });
+    } else {
+      await interaction.reply({ 
+        content: `❌ An error occurred: ${error.message}`, 
+        ephemeral: true 
+      });
+    }
+  }
+}
+
+async function handleVerifyDiscordSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const code = interaction.options.getString('code');
+    if (!code || typeof code !== 'string' || code.trim().length === 0) {
+      await interaction.followUp({
+        content: '❌ Missing verification code. Please copy the code from the website and try again.',
+        ephemeral: true
+      });
+      return;
+    }
+    const db = getFirestore();
+    
+    // Get verification document
+    const verificationRef = db.collection('discordVerifications').doc(code);
+    const verificationDoc = await verificationRef.get();
+    
+    if (!verificationDoc.exists) {
+      await interaction.followUp({ 
+        content: '❌ Verification code not found. Please check the code and try again.', 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    const verificationData = verificationDoc.data();
+    
+    // Check if already processed
+    if (verificationData.status !== 'pending') {
+      await interaction.followUp({ 
+        content: `❌ This verification code has already been ${verificationData.status}.`, 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    // Check expiration
+    const createdAt = verificationData.createdAt?.toDate();
+    if (createdAt && Date.now() - createdAt.getTime() > 10 * 60 * 1000) {
+      await verificationRef.update({ status: 'expired' });
+      await interaction.followUp({ 
+        content: '❌ This verification code has expired. Please request a new one from the web app.', 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    // Update verification with the actual Discord User ID from the interaction
+    // (We don't require users to enter their Discord ID anymore)
+    const discordUserId = interaction.user.id;
+    
+    // Update the verification document with the Discord User ID
+    await verificationRef.update({ 
+      discordUserId: discordUserId,
+      discordUsername: interaction.user.username
+    });
+    
+    // Send confirmation DM
+    await sendVerificationDM(
+      interaction.client,
+      discordUserId,
+      code,
+      verificationData.userEmail,
+      verificationData.userName,
+      verificationData.teamName
+    );
+    
+    await interaction.followUp({ 
+      content: '✅ Verification DM sent! Check your DMs and click the confirmation button to link your account.', 
+      ephemeral: true 
+    });
+  } catch (error) {
+    console.error('Error in handleVerifyDiscordSlash:', error);
+    if (interaction.deferred) {
+      await interaction.followUp({ 
+        content: `❌ An error occurred: ${error.message}`, 
+        ephemeral: true 
+      });
+    } else {
+      await interaction.reply({ 
+        content: `❌ An error occurred: ${error.message}`, 
+        ephemeral: true 
+      });
+    }
+  }
+}
+
+async function handleHelpSlash(interaction) {
+  const db = getFirestore();
+  const isManager = (await getManagerTeams(db, interaction.user.id)).length > 0;
+  
+  const playerEmbed = new EmbedBuilder()
+    .setTitle('🤖 SwissPlay Bot - Player Commands')
+    .setDescription('Commands available to all players:')
+    .setColor(0x7289da)
+    .addFields(
+      {
+        name: '`/my-availability`',
+        value: 'Set your availability via DM. Just tell the bot when you can play!\nExample: "Weekdays 6-10pm" or "Mon/Wed/Fri 7-9pm"'
+      },
+      {
+        name: '`/my-team`',
+        value: 'View your team roster, schedule, and your availability in a DM.'
+      },
+      {
+        name: '`/upcoming-scrims`',
+        value: 'See all scheduled scrims and your responses.'
+      },
+      {
+        name: '`/link email:you@email.com`',
+        value: 'Link your Discord account or join a team using your email.'
+      },
+      {
+        name: '`/help`',
+        value: 'Show this help message'
+      }
+    )
+    .setFooter({ text: 'All availability and team info is sent privately via DM.' });
+  
+  const embeds = [playerEmbed];
+  
+  if (isManager) {
+    const managerEmbed = new EmbedBuilder()
+      .setTitle('🛡️ SwissPlay Bot - Manager Commands')
+      .setDescription('Additional commands for verified managers:')
+      .setColor(0x00ff00)
+      .addFields(
+        {
+          name: '`/add-player @user`',
+          value: 'Add a Discord server member to your team. They can immediately use player commands.'
+        },
+        {
+          name: '`/remove-player @user`',
+          value: 'Remove a player from your team.'
+        },
+        {
+          name: '`/schedule-scrim date:tomorrow time:7pm`',
+          value: 'Schedule a scrim and poll your team. Bot DMs all players for availability.'
+        },
+        {
+          name: '`/find-time`',
+          value: 'Analyze team availability and suggest best times for scrims.'
+        },
+        {
+          name: '`/team-stats`',
+          value: 'View detailed team availability analytics and engagement metrics.'
+        },
+        {
+          name: '`/list-players`',
+          value: 'List all players in your team with Discord status and availability.'
+        },
+        {
+          name: '`/find-free-agents`',
+          value: 'Browse free agents looking for teams. Filter by role, region, SR.'
+        },
+        {
+          name: '`/request-availability`',
+          value: 'Request availability from specific players (legacy command).'
+        },
+        {
+          name: '`/upload-scrim`',
+          value: 'Upload ScrimTime CSV log file to team dashboard.'
+        },
+        {
+          name: '`/link email:user@email.com player:@user`',
+          value: 'Link another user\'s Discord to a team member (for bootstrapping).'
+        }
+      )
+      .setFooter({ text: 'Manager verification required - verify on website first!' });
+    
+    embeds.push(managerEmbed);
+  } else {
+    playerEmbed.addFields({
+      name: '🛡️ Want to Manage a Team?',
+      value: 'Create a team on the website, then verify your Discord in Team Management → Settings.'
+    });
+  }
+
+  await interaction.reply({ embeds, ephemeral: true });
+}
+
+async function handleUploadScrimSlash(interaction) {
+  try {
+    await interaction.deferReply();
+    
+    const attachment = interaction.options.getAttachment('logfile');
+    if (!attachment) {
+      await interaction.followUp('❌ No attachment found.');
+      return;
+    }
+
+    if (!attachment.name.endsWith('.csv') && !attachment.name.endsWith('.txt')) {
+      await interaction.followUp('❌ Please upload a .csv or .txt file from ScrimTime.');
+      return;
+    }
+
+    // Download file
+    const response = await fetch(attachment.url);
+    const content = await response.text();
+
+    if (!isValidScrimTimeCSV(content)) {
+      await interaction.followUp('❌ Invalid ScrimTime format. Make sure you are using workshop code **9GPA9**.');
+      return;
+    }
+
+    const scrimData = parseScrimTimeCSV(content);
+    const db = getFirestore();
+    
+    // Find user's team
+    const teamsSnapshot = await db.collection('teams').get();
+    const userTeam = teamsSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .find(t => t.members && t.members.some(m => m.discordId === interaction.user.id));
+
+    if (!userTeam) {
+      await interaction.followUp('❌ You must have your Discord account linked to a team on Solaris to upload logs. Use `/link` first or contact your manager.');
+      return;
+    }
+
+    // Check if user is manager/owner
+    const member = userTeam.members.find(m => m.discordId === interaction.user.id);
+    const isManager = member.roles.includes('Manager') || member.roles.includes('Owner');
+
+    if (!isManager) {
+      await interaction.followUp('❌ Only team managers or owners can upload scrim logs.');
+      return;
+    }
+
+    // Save to Firestore
+    await db.collection('scrimLogs').add({
+      teamId: userTeam.id,
+      uploadedByDiscordId: interaction.user.id,
+      uploadedAt: new Date(),
+      matchMetadata: scrimData.metadata,
+      playerStats: scrimData.players,
+      teamStats: scrimData.teams,
+      killLog: scrimData.killLog,
+      ultimateLog: scrimData.ultimates,
+      roundStats: scrimData.rounds,
+      source: 'discord'
+    });
+
+    const embed = new EmbedBuilder()
+      .setTitle('✅ Scrim Data Uploaded')
+      .setDescription(`Successfully parsed match: **${scrimData.metadata?.mapName || 'Unknown Map'}**`)
+      .addFields(
+        { name: 'Teams', value: `${scrimData.metadata?.team1Name || 'Team 1'} vs ${scrimData.metadata?.team2Name || 'Team 2'}` },
+        { name: 'Score', value: `${scrimData.metadata?.score1 || 0} - ${scrimData.metadata?.score2 || 0}` },
+        { name: 'Players', value: `${scrimData.players.length} operatives tracked` }
+      )
+      .setColor(0x00ff00)
+      .setTimestamp();
+
+    await interaction.followUp({ embeds: [embed] });
+
+  } catch (error) {
+    console.error('Error in handleUploadScrimSlash:', error);
+    await interaction.followUp(`❌ Failed to process scrim log: ${error.message}`);
+  }
+}
+
+async function handleMyAvailabilitySlash(interaction) {
+  try {
+    await interaction.reply({ content: '📅 Check your DMs! I sent you a message to set your availability.', ephemeral: true });
+    
+    const user = interaction.user;
+    const db = getFirestore();
+    
+    // Find user's team(s)
+    const teamsSnapshot = await db.collection('teams').get();
+    const userTeams = teamsSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(t => t.members && t.members.some(m => m.discordId === user.id));
+    
+    if (userTeams.length === 0) {
+      await user.send({
+        embeds: [new EmbedBuilder()
+          .setTitle('❌ Not on a Team')
+          .setDescription('You\'re not currently on any team. Ask a manager to add you using `/add-player`.')
+          .setColor(0xff0000)]
+      });
+      return;
+    }
+    
+    const embed = new EmbedBuilder()
+      .setTitle('📅 Set Your Availability')
+      .setDescription(
+        'Let me know when you\'re available for scrims!\n\n' +
+        '**Examples:**\n' +
+        '• "Weekdays after 6pm"\n' +
+        '• "Monday Wednesday Friday 7-10pm"\n' +
+        '• "Weekends anytime"\n' +
+        '• "Tuesday Thursday 8-11pm"\n\n' +
+        'Just reply to this DM with your availability!'
+      )
+      .setColor(0x7289da)
+      .setFooter({ text: 'Your availability will be saved and visible to your team manager.' });
+    
+    await user.send({ embeds: [embed] });
+    
+    // Store pending availability update
+    await db.collection('pendingAvailabilityUpdates').doc(user.id).set({
+      userId: user.id,
+      username: user.username,
+      teamIds: userTeams.map(t => t.id),
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000) // 30 min expiry
+    });
+    
+  } catch (error) {
+    console.error('Error in handleMyAvailabilitySlash:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function handleMyTeamSlash(interaction) {
+  try {
+    await interaction.reply({ content: '👥 Check your DMs! I sent you your team info.', ephemeral: true });
+    
+    const user = interaction.user;
+    const db = getFirestore();
+    
+    // Find user's team(s)
+    const teamsSnapshot = await db.collection('teams').get();
+    const userTeams = teamsSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(t => t.members && t.members.some(m => m.discordId === user.id));
+    
+    if (userTeams.length === 0) {
+      await user.send({
+        embeds: [new EmbedBuilder()
+          .setTitle('❌ Not on a Team')
+          .setDescription('You\'re not currently on any team. Ask a manager to add you using `/add-player`.')
+          .setColor(0xff0000)]
+      });
+      return;
+    }
+    
+    for (const team of userTeams) {
+      const myMember = team.members.find(m => m.discordId === user.id);
+      const availText = myMember?.availabilityText || 'Not set';
+      
+      const rosterText = team.members
+        .map(m => `• ${m.discordUsername || m.name || 'Unknown'} ${m.discordId === user.id ? '(You)' : ''}`)
+        .join('\n')
+        .slice(0, 1000);
+      
+      // Get upcoming scrims for this team
+      const upcomingScrims = await db.collection('scrimPolls')
+        .where('teamId', '==', team.id)
+        .where('status', '==', 'active')
+        .get();
+      
+      let scrimsText = 'No upcoming scrims';
+      if (!upcomingScrims.empty) {
+        const scrimList = upcomingScrims.docs
+          .map(doc => {
+            const s = doc.data();
+            const myResponse = s.responses?.[user.id];
+            const statusEmoji = myResponse?.response === 'Available' ? '✅' : 
+                               myResponse?.response === 'Unavailable' ? '❌' : 
+                               myResponse?.response === 'Maybe' ? '⏰' : '❓';
+            return `${statusEmoji} ${s.date} at ${s.time}`;
+          })
+          .slice(0, 3)
+          .join('\n');
+        scrimsText = scrimList || 'No upcoming scrims';
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`👥 ${team.name || 'Your Team'}`)
+        .addFields(
+          { name: 'Your Availability', value: availText, inline: false },
+          { name: 'Upcoming Scrims', value: scrimsText, inline: false },
+          { name: 'Team Roster', value: rosterText || 'No members', inline: false }
+        )
+        .setColor(0x00ff00)
+        .setFooter({ text: 'Use /my-availability to update | /upcoming-scrims to see all scrims' });
+      
+      await user.send({ embeds: [embed] });
+    }
+    
+  } catch (error) {
+    console.error('Error in handleMyTeamSlash:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function handleTeamStatsSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    
+    const db = getFirestore();
+    const managerDiscordId = interaction.user.id;
+    
+    // Check if user is a verified manager
+    const managerTeams = await getManagerTeams(db, managerDiscordId);
+    
+    if (managerTeams.length === 0) {
+      await interaction.followUp({
+        content: '❌ You are not a verified manager. Please verify on the website first.',
+        ephemeral: true
+      });
+      return;
+    }
+    
+    const team = managerTeams[0]; // Use first team
+    
+    // Calculate availability stats
+    const totalMembers = team.members.length;
+    const membersWithAvailability = team.members.filter(m => 
+      Array.isArray(m.availability) && m.availability.length > 0
+    ).length;
+    
+    const availabilityPercentage = totalMembers > 0 
+      ? ((membersWithAvailability / totalMembers) * 100).toFixed(0)
+      : 0;
+    
+    // Calculate average availability per day
+    const dayStats = {};
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    for (const day of days) {
+      let count = 0;
+      for (const member of team.members) {
+        if (Array.isArray(member.availability) && 
+            member.availability.some(slot => slot.day === day)) {
+          count++;
+        }
+      }
+      dayStats[day] = count;
+    }
+    
+    // Sort days by availability
+    const sortedDays = Object.entries(dayStats)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 7);
+    
+    const dayStatsText = sortedDays
+      .map(([day, count]) => {
+        const emoji = count >= totalMembers * 0.7 ? '🟢' : count >= totalMembers * 0.4 ? '🟡' : '🔴';
+        const percentage = totalMembers > 0 ? ((count / totalMembers) * 100).toFixed(0) : 0;
+        return `${emoji} ${day}: ${count}/${totalMembers} (${percentage}%)`;
+      })
+      .join('\n');
+    
+    // Get recent scrim response rate
+    const recentScrims = await db.collection('scrimPolls')
+      .where('teamId', '==', team.id)
+      .orderBy('createdAt', 'desc')
+      .limit(5)
+      .get();
+    
+    let avgResponseRate = 'N/A';
+    if (!recentScrims.empty) {
+      let totalResponseRate = 0;
+      let scrimCount = 0;
+      
+      recentScrims.docs.forEach(doc => {
+        const scrim = doc.data();
+        const responseCount = Object.keys(scrim.responses || {}).length;
+        const rate = totalMembers > 0 ? (responseCount / totalMembers) * 100 : 0;
+        totalResponseRate += rate;
+        scrimCount++;
+      });
+      
+      avgResponseRate = `${(totalResponseRate / scrimCount).toFixed(0)}%`;
+    }
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 Team Analytics: ${team.name}`)
+      .setDescription(`Availability and engagement statistics`)
+      .addFields(
+        { name: 'Team Size', value: `${totalMembers} members`, inline: true },
+        { name: 'Availability Set', value: `${membersWithAvailability}/${totalMembers} (${availabilityPercentage}%)`, inline: true },
+        { name: 'Avg. Poll Response', value: avgResponseRate, inline: true },
+        { name: 'Daily Availability', value: dayStatsText || 'No data', inline: false }
+      )
+      .setColor(0x7289da)
+      .setFooter({ text: 'Use /find-time to find optimal scrim times!' });
+    
+    await interaction.followUp({ embeds: [embed], ephemeral: true });
+    
+  } catch (error) {
+    console.error('Error in handleTeamStatsSlash:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    } else {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+async function handleUpcomingScrimsSlash(interaction) {
+  try {
+    await interaction.reply({ content: '📅 Check your DMs! I sent you the upcoming scrims.', ephemeral: true });
+    
+    const user = interaction.user;
+    const db = getFirestore();
+    
+    // Find user's team(s)
+    const teamsSnapshot = await db.collection('teams').get();
+    const userTeams = teamsSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(t => t.members && t.members.some(m => m.discordId === user.id));
+    
+    if (userTeams.length === 0) {
+      await user.send({
+        embeds: [new EmbedBuilder()
+          .setTitle('❌ Not on a Team')
+          .setDescription('You\'re not currently on any team.')
+          .setColor(0xff0000)]
+      });
+      return;
+    }
+    
+    // Get all active scrims for user's teams
+    const teamIds = userTeams.map(t => t.id);
+    const allScrims = [];
+    
+    for (const teamId of teamIds) {
+      const scrimsSnapshot = await db.collection('scrimPolls')
+        .where('teamId', '==', teamId)
+        .where('status', '==', 'active')
+        .get();
+      
+      scrimsSnapshot.docs.forEach(doc => {
+        allScrims.push({ id: doc.id, ...doc.data() });
+      });
+    }
+    
+    if (allScrims.length === 0) {
+      await user.send({
+        embeds: [new EmbedBuilder()
+          .setTitle('📅 No Upcoming Scrims')
+          .setDescription('Your team has no scheduled scrims yet.')
+          .setColor(0xffaa00)]
+      });
+      return;
+    }
+    
+    // Sort by date/time
+    allScrims.sort((a, b) => {
+      const dateA = parseScrimDateTime(a.date, a.time);
+      const dateB = parseScrimDateTime(b.date, b.time);
+      return dateA - dateB;
+    });
+    
+    const embed = new EmbedBuilder()
+      .setTitle('📅 Upcoming Scrims')
+      .setDescription(`You have ${allScrims.length} scheduled scrim(s)`)
+      .setColor(0x7289da);
+    
+    for (const scrim of allScrims.slice(0, 10)) {
+      const myResponse = scrim.responses?.[user.id];
+      const statusEmoji = myResponse?.response === 'Available' ? '✅' : 
+                         myResponse?.response === 'Unavailable' ? '❌' : 
+                         myResponse?.response === 'Maybe' ? '⏰' : '❓';
+      
+      const yesCount = Object.values(scrim.responses || {}).filter(r => r.response === 'Available').length;
+      const totalResponses = Object.keys(scrim.responses || {}).length;
+      
+      embed.addFields({
+        name: `${statusEmoji} ${scrim.date} at ${scrim.time}`,
+        value: `Team: **${scrim.teamName}**\n` +
+               `Confirmed: ${yesCount} player(s) (${totalResponses} responded)` + 
+               (scrim.notes ? `\nNotes: ${scrim.notes}` : ''),
+        inline: false
+      });
+    }
+    
+    if (allScrims.length > 10) {
+      embed.setFooter({ text: `Showing 10 of ${allScrims.length} scrims` });
+    }
+    
+    await user.send({ embeds: [embed] });
+    
+  } catch (error) {
+    console.error('Error in handleUpcomingScrimsSlash:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+    }
+  }
+}
+
+// Start HTTP server for Cloud Run health checks FIRST
+// This ensures Cloud Run health checks pass even if Discord/Firebase fail
+const PORT = process.env.PORT || 8080;
+const server = http.createServer((req, res) => {
+  // Health check endpoint
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'ok', 
+      bot: client.user ? 'connected' : 'connecting',
+      timestamp: new Date().toISOString()
+    }));
+  } else {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not Found');
+  }
+});
+
+// Start HTTP server first (required for Cloud Run)
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🌐 HTTP server listening on port ${PORT}`);
+  
+  // Start Discord bot after HTTP server is ready
+  if (!process.env.DISCORD_TOKEN) {
+    console.error('❌ DISCORD_TOKEN environment variable is not set');
+    console.log('⚠️  Bot will not connect to Discord, but HTTP server is running');
+    return;
+  }
+  
+  console.log('🤖 Attempting to connect to Discord...');
+  client.login(process.env.DISCORD_TOKEN).catch(error => {
+    console.error('❌ Failed to login to Discord:', error.message);
+    console.log('⚠️  HTTP server is still running for health checks');
+    // Don't exit - keep HTTP server running for Cloud Run health checks
+  });
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  console.error('❌ HTTP server error:', error);
+  process.exit(1);
+});
+
+// Handle process errors gracefully
+process.on('unhandledRejection', (error) => {
+  console.error('⚠️  Unhandled promise rejection:', error);
+  // Don't exit - keep the container running
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught exception:', error);
+  // Don't exit immediately - let Cloud Run handle it
+});
+

@@ -1,0 +1,46 @@
+.error-boundary {
+  min-height: calc(100vh - 70px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.error-boundary__content {
+  text-align: center;
+  max-width: 420px;
+}
+
+.error-boundary__title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text);
+  margin: 0 0 1rem 0;
+}
+
+.error-boundary__message {
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+}
+
+.error-boundary__btn {
+  padding: 0.75rem 1.5rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.error-boundary__btn:hover {
+  filter: brightness(1.1);
+}

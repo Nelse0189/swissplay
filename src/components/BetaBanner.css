@@ -1,0 +1,13 @@
+.beta-banner {
+  background: linear-gradient(90deg, var(--color-accent), var(--color-secondary));
+  color: white;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.beta-banner__text {
+  display: block;
+}

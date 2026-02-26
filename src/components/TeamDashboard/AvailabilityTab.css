@@ -1,0 +1,193 @@
+.availability-tab {
+  padding: 1rem;
+}
+
+.availability-header {
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.availability-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #1a1a1a;
+}
+
+.availability-header p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #666;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+}
+
+.legend {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: #1a1a1a;
+}
+
+.legend-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #1a1a1a;
+  background: transparent;
+}
+
+.legend-box.available {
+  background: #1a1a1a;
+}
+
+/* Grid Styles */
+.digital-grid-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(26, 26, 26, 0.2);
+  padding: 1rem;
+  overflow-x: auto;
+  user-select: none;
+}
+
+.grid-time-header {
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.corner-spacer {
+  width: 50px;
+  flex-shrink: 0;
+}
+
+.header-cell {
+  flex: 1;
+  min-width: 30px;
+  text-align: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: #666;
+  border-left: 1px solid rgba(26, 26, 26, 0.1);
+}
+
+.grid-row {
+  display: flex;
+  height: 36px;
+  margin-bottom: 2px;
+}
+
+.row-label {
+  width: 50px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: #1a1a1a;
+  font-weight: bold;
+}
+
+.row-cells {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+}
+
+.grid-cell {
+  flex: 1;
+  min-width: 30px;
+  height: 100%;
+  background: rgba(26, 26, 26, 0.05);
+  border: 1px solid transparent;
+  transition: all 0.1s;
+  position: relative;
+}
+
+.grid-cell.active {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  box-shadow: 0 0 5px rgba(0,0,0,0.2);
+}
+
+/* Add scanline effect to active cells */
+.grid-cell.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: rgba(255,255,255,0.2);
+  animation: scanline 2s linear infinite;
+}
+
+@keyframes scanline {
+  0% { top: 0%; opacity: 0; }
+  50% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Skill Range Section */
+.skill-range-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(26, 26, 26, 0.2);
+  border-radius: 4px;
+}
+
+.skill-range-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
+  color: #1a1a1a;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.skill-range-section > p {
+  margin: 0 0 1.5rem 0;
+  font-size: 0.8rem;
+  color: #666;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.skill-range-controls {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.skill-range-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.skill-range-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+  font-weight: bold;
+}
+
+.skill-range-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.skill-range-row .custom-dropdown {
+  flex: 1;
+}
+
+
+
+

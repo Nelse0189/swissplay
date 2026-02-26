@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" aria-label="SwissPlay">
+  <circle cx="20" cy="20" r="18" fill="#E41E26"/>
+  <rect x="17" y="8" width="6" height="24" fill="white"/>
+  <rect x="8" y="17" width="24" height="6" fill="white"/>
+</svg>

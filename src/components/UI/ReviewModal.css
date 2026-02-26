@@ -1,0 +1,159 @@
+.review-form {
+  padding: 1rem 0;
+}
+
+.review-rating-section {
+  margin-bottom: 2rem;
+}
+
+.review-label {
+  display: block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--color-text, #ffffff);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.star-rating {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.star-btn {
+  background: transparent;
+  border: none;
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+.star-btn:hover {
+  transform: scale(1.1);
+}
+
+.star-btn.active {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.rating-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--color-accent, #7289da);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.review-comment-section {
+  margin-bottom: 1.5rem;
+}
+
+.review-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: var(--color-text, #ffffff);
+  resize: vertical;
+  min-height: 100px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.review-textarea:focus {
+  outline: none;
+  border-color: var(--color-accent, #7289da);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.review-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin-top: 0.5rem;
+}
+
+.review-error {
+  background: rgba(244, 67, 54, 0.2);
+  border: 1px solid rgba(244, 67, 54, 0.5);
+  color: #f44336;
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.review-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.review-cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text, #ffffff);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  padding: 0.75rem 1.5rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.review-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.review-submit-btn {
+  background: var(--color-accent, #7289da);
+  color: var(--color-text, #ffffff);
+  border: 1px solid var(--color-accent, #7289da);
+  padding: 0.75rem 1.5rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.review-submit-btn:hover:not(:disabled) {
+  background: rgba(114, 137, 218, 0.85);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(114, 137, 218, 0.3);
+}
+
+.review-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+
+
+
+

@@ -1,0 +1,396 @@
+/* Free Agents Page */
+.free-agents-page {
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+}
+
+.free-agents-page .content-wrapper {
+  width: 100%;
+  min-height: 100%;
+  flex: 1;
+}
+
+.free-agents-content {
+  padding: 4rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 95%;
+}
+
+.free-agents-header {
+  margin-bottom: 2rem;
+}
+
+.free-agents-header .header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.mock-toggle-btn {
+  padding: 0.5rem 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mock-toggle-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.mock-toggle-btn.on {
+  background: rgba(var(--color-accent-rgb), 0.2);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.free-agents-header h1 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 2.5rem;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+}
+
+.free-agents-header .subtitle {
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Tabs */
+.tabs-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-btn {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn:hover {
+  color: var(--color-text);
+}
+
+.tab-btn.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* List section */
+.list-section {
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.auth-prompt {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+.auth-prompt h3 {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+}
+
+.auth-prompt p {
+  color: var(--color-text-secondary);
+  margin: 0 0 1.5rem 0;
+}
+
+.free-agent-form .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.free-agent-form label {
+  display: block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.free-agent-form input,
+.free-agent-form select,
+.free-agent-form textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.free-agent-form input:focus,
+.free-agent-form select:focus,
+.free-agent-form textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* CustomDropdown in form - match theme */
+.free-agent-form .custom-dropdown .dropdown-header {
+  border-radius: 6px;
+  background: var(--color-background);
+}
+
+.free-agents-page .custom-dropdown .dropdown-list {
+  border-radius: 0 0 8px 8px;
+  background: var(--color-background-card);
+  border-color: var(--color-accent);
+}
+
+.roles-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.role-chip {
+  padding: 0.5rem 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.role-chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.role-chip.selected {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-background);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.form-actions .save-btn.danger {
+  background: transparent;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.form-actions .save-btn.danger:hover {
+  background: rgba(var(--color-accent-rgb), 0.15);
+}
+
+/* Browse section */
+.browse-section {
+  position: relative;
+}
+
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filter-group label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.filter-group .custom-dropdown {
+  min-width: 140px;
+}
+
+.filter-group input {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  min-width: 120px;
+}
+
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.agent-card {
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  transition: all 0.2s;
+}
+
+.agent-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+}
+
+.agent-avatar-wrap {
+  flex-shrink: 0;
+}
+
+.agent-avatar-wrap img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.agent-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-info h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.listing-type-badge {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.listing-type-badge.coach {
+  background: rgba(var(--color-accent-rgb), 0.25);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+}
+
+.agent-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.meta-tag {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(var(--color-accent-rgb), 0.15);
+  color: var(--color-accent);
+}
+
+.meta-tag.sr {
+  background: rgba(var(--color-primary-rgb), 0.2);
+  color: var(--color-primary);
+}
+
+.meta-tag.region {
+  background: var(--color-background-light);
+  color: var(--color-text-secondary);
+}
+
+.agent-availability {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.5rem 0;
+}
+
+.agent-contacts {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.5rem 0;
+}
+
+.agent-contacts span {
+  white-space: nowrap;
+}
+
+.agent-bio {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  margin: 0 0 1rem 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--color-text-secondary);
+}
+
+.empty-state h3 {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+}

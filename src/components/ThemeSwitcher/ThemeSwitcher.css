@@ -1,0 +1,100 @@
+.theme-switcher {
+  padding: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.theme-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.theme-header h2 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.theme-description {
+  color: var(--color-text-secondary);
+  font-size: 1.1rem;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.palette-card {
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.palette-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-lg);
+}
+
+.palette-card.selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.palette-preview-main {
+  height: 60px;
+  display: flex;
+}
+
+.color-strip {
+  flex: 1;
+  height: 100%;
+}
+
+.palette-info {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.palette-name {
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.palette-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.selected-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: var(--color-accent);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 600px) {
+  .palette-grid {
+    grid-template-columns: 1fr;
+  }
+}

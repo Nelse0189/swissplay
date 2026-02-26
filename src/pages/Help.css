@@ -1,0 +1,231 @@
+.help-page {
+  min-height: calc(100vh - 70px);
+  position: relative;
+}
+
+.help-page .content-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 70px);
+}
+
+.help-content {
+  position: relative;
+  z-index: 2;
+  padding: 4rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 95%;
+}
+
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3rem;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  padding-bottom: 1.5rem;
+}
+
+.help-header h1 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 3rem;
+  color: var(--color-text, #ffffff);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+}
+
+.help-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.help-section {
+  background: var(--color-background-card, rgba(30, 20, 50, 0.6));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  padding: 2rem;
+  backdrop-filter: blur(10px);
+}
+
+.help-section h2 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.8rem;
+  color: var(--color-text, #ffffff);
+  margin-bottom: 1.5rem;
+  border-left: 4px solid var(--color-accent, #7289da);
+  padding-left: 1rem;
+  text-transform: uppercase;
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.faq-item {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+}
+
+.faq-question {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  color: var(--color-text, #ffffff);
+  margin: 0 0 0.75rem 0;
+  font-weight: bold;
+}
+
+.faq-answer {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0;
+  line-height: 1.6;
+}
+
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.link-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+  padding: 1.5rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.link-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-accent, #7289da);
+  transform: translateY(-2px);
+}
+
+.link-card h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  color: var(--color-text, #ffffff);
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+}
+
+.link-card p {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0;
+}
+
+.getting-started {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.step-item {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-accent, #7289da);
+  color: var(--color-text, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.step-content h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  color: var(--color-text, #ffffff);
+  margin: 0 0 0.25rem 0;
+  text-transform: uppercase;
+}
+
+.step-content p {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0;
+}
+
+.bot-setup-info {
+  margin-top: 1rem;
+}
+
+.bot-setup-info > p {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.bot-install-card {
+  background: rgba(114, 137, 218, 0.1);
+  border: 1px solid rgba(114, 137, 218, 0.3);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-top: 1rem;
+}
+
+.bot-install-card h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.3rem;
+  color: var(--color-text, #ffffff);
+  margin: 0 0 1rem 0;
+  text-transform: uppercase;
+}
+
+.bot-install-card > p {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0 0 1rem 0;
+}
+
+.bot-features {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.bot-features li {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  padding: 0.5rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+  line-height: 1.6;
+}
+
+.bot-features li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--color-accent, #7289da);
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+

@@ -1,0 +1,294 @@
+/* Theme utility - applies colors globally */
+:root {
+  /* Core Colors (Set by Theme Switcher) */
+  --color-primary: #191f2e;
+  --color-secondary: #7289da;
+  --color-background: #191f2e;
+  --color-text: #ffffff;
+  --color-accent: #7289da;
+
+  /* Derived Colors and Utils */
+  --color-background-light: rgba(var(--color-text-rgb), 0.03);
+  --color-background-card: rgba(var(--color-text-rgb), 0.05);
+  --color-text-secondary: rgba(var(--color-text-rgb), 0.6);
+  --color-border: rgba(var(--color-text-rgb), 0.1);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* Light/Dark Mode Dynamic Adaption */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-background-light: rgba(var(--color-background-rgb), 0.03);
+    --color-background-card: rgba(var(--color-background-rgb), 0.05);
+  }
+}
+
+/* Utility classes for themed transparency */
+.bg-glass { background-color: rgba(var(--color-background-rgb), 0.8) !important; backdrop-filter: blur(8px); }
+.bg-glass-light { background-color: rgba(var(--color-text-rgb), 0.05) !important; }
+.border-themed { border: 1px solid var(--color-border) !important; }
+
+/* Universal Theme Enforcement - Maximum Coverage */
+/* Force all page containers to use theme */
+div[class*="page"] > div.content-wrapper,
+div.content-wrapper,
+div[class*="content"],
+div[class*="wrapper"],
+div[class*="dashboard"],
+div[class*="container"]:not([class*="modal"]):not([class*="dropdown"]):not([class*="selector"]):not([class*="form"]) {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+}
+
+/* Force all card/form elements - narrowed to avoid nested element bleed */
+.profile-card,
+.team-card,
+.scrim-card,
+.join-team-card,
+.edit-profile-content,
+.team-form,
+.form-section,
+.create-team-form,
+.create-team-content,
+.profile-content,
+.join-team-content,
+.team-management-content,
+.dashboard-content,
+.auth-prompt-container,
+.loading-state,
+.digital-grid-container,
+.skill-range-section,
+.tab-content-container {
+  background-color: var(--color-background-card) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+/* Universal text color enforcement */
+h1, h2, h3, h4, h5, h6,
+p, span, div, label,
+.info-value,
+.step-content h4,
+.team-card h3,
+.request-card p {
+  color: var(--color-text) !important;
+}
+
+/* Secondary text elements */
+.info-label,
+.form-hint,
+.text-secondary,
+.team-card-meta,
+.team-player-name,
+.step-content p,
+.notes-list li,
+.section-desc,
+.auth-prompt-container p {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Base Styles */
+html, body, #root {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  margin: 0;
+}
+
+/* Layout Elements - Maximum Specificity */
+html, body, #root,
+div.app,
+main.main-content,
+div.content-wrapper,
+div[class*="page"],
+div[class*="content"],
+.create-team-page,
+.auth-page,
+.find-scrims-page,
+.profile-page,
+.edit-profile-page,
+.team-management-page,
+.join-team-page,
+.about-page,
+.creators-page,
+.contact-page,
+.help-page,
+.tier-rating-page,
+.revaluation-page,
+.public-profile-page,
+.public-team-page {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+}
+
+/* Global Card Backgrounds - Consolidated and Specific */
+.profile-card, 
+.team-card, 
+.scrim-card, 
+.dashboard-content, 
+.auth-content, 
+.join-team-card,
+.modal-content,
+.edit-profile-content,
+.team-form,
+.create-team-form,
+.create-team-content,
+.profile-content,
+.join-team-content,
+.team-management-content,
+.find-scrims-page .dashboard-content,
+.auth-prompt-container,
+.loading-state,
+.digital-grid-container,
+.skill-range-section,
+.tab-content-container {
+  background-color: var(--color-background-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(8px);
+  color: var(--color-text) !important;
+}
+
+/* Specific elements that should NOT have backgrounds when nested */
+.profile-section,
+.nav-dropdown-section,
+.form-section,
+.form-group,
+.dashboard-header,
+.filters-section,
+.team-selector-container {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Except when form-section is a top-level container in some layouts */
+.create-team-form .form-section,
+.team-form .form-section {
+  margin-bottom: 2rem;
+}
+
+/* Typography - Universal Coverage */
+h1, h2, h3, h4, h5, h6,
+p, span, div, label, 
+.info-label, .info-value,
+.form-hint, .text-secondary,
+.profile-header h1,
+.profile-section h3,
+.dashboard-header h1,
+.create-team-header h1,
+.join-team-header h1 {
+  color: var(--color-text) !important;
+}
+
+.info-label,
+.form-hint,
+.text-secondary,
+.profile-section h3,
+.auth-prompt-container p {
+  color: var(--color-text-secondary) !important;
+}
+
+.text-secondary {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Explicit overrides to prevent background bleed on nested elements */
+div[class*="card-header"],
+div[class*="card-footer"],
+div[class*="card-info"],
+div[class*="card-content"],
+div[class*="card-meta"],
+div[class*="card-players"],
+div[class*="card-avatar"],
+div[class*="dashboard-header"],
+div[class*="form-group"],
+div[class*="selector-container"],
+div[class*="filters-section"],
+.form-group,
+.profile-section,
+.nav-dropdown-section {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+/* Buttons */
+button.save-btn, .action-btn, .primary-btn {
+  background-color: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+button.save-btn:hover, .action-btn:hover, .primary-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+button.save-btn:active, .action-btn:active {
+  transform: translateY(0);
+}
+
+/* Inputs */
+input.custom-input, select.custom-select, textarea.custom-textarea {
+  background-color: var(--color-background-light);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  padding: 0.625rem 1rem;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input.custom-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.2);
+}
+
+input.custom-input.input-error,
+select.custom-input.input-error,
+textarea.custom-input.input-error {
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+input.custom-input.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.form-error {
+  font-size: 0.8rem;
+  color: #fca5a5;
+  margin-top: 0.25rem;
+}
+
+/* Custom Components */
+.badge {
+  background-color: var(--color-background-light);
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+
+

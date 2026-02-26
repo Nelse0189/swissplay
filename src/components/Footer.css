@@ -1,0 +1,85 @@
+.footer {
+  background-color: var(--color-background);
+  width: 100%;
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--color-border);
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.footer-separator {
+  color: var(--color-text-secondary);
+  margin: 0 0.5rem;
+}
+
+.contact-link {
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-family: 'Share Tech Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: opacity 0.2s;
+}
+
+.contact-link:hover {
+  opacity: 0.8;
+}
+
+.footer-socials {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--color-text);
+  text-decoration: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.social-link:hover {
+  opacity: 0.7;
+  transform: translateY(-2px);
+}
+
+.social-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.discord-icon {
+  color: var(--color-text);
+}
+
+.twitch-icon {
+  color: var(--color-text);
+}
+
+.x-icon {
+  color: var(--color-text);
+}

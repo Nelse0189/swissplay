@@ -1,0 +1,77 @@
+.about-page {
+  min-height: calc(100vh - 70px);
+  position: relative;
+}
+
+.content-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 70px);
+}
+
+.main-content {
+  position: relative;
+  z-index: 2;
+  padding: 4rem 4rem;
+  max-width: 1400px; /* Increased from 800px/standard */
+  margin: 0 auto;
+  width: 90%;
+}
+
+.main-content h1 {
+  font-size: 3rem;
+  font-weight: 400;
+  color: var(--color-text, #ffffff);
+  font-family: 'Share Tech Mono', monospace;
+  margin: 0 0 2rem 0;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  padding-bottom: 1rem;
+}
+
+.main-content p {
+  font-size: 1.2rem;
+  color: var(--color-text, #ffffff);
+  line-height: 1.8;
+  font-family: 'Inter', sans-serif;
+  max-width: 100%;
+}
+
+.about-intro {
+  font-size: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.about-section {
+  margin-bottom: 2.5rem;
+}
+
+.about-section h2 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-accent);
+  margin: 0 0 1rem 0;
+  border: none;
+  padding: 0;
+}
+
+.about-section ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  line-height: 1.8;
+}
+
+.about-section li {
+  margin-bottom: 0.5rem;
+}
+
+.about-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}

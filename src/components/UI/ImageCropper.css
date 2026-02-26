@@ -1,0 +1,223 @@
+.image-cropper-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-cropper-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+}
+
+.image-cropper-container {
+  position: relative;
+  z-index: 1;
+  background: var(--color-background-card, rgba(30, 20, 50, 0.95));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: cropperFadeIn 0.3s ease-out;
+}
+
+@keyframes cropperFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.image-cropper-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+}
+
+.image-cropper-header h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.2rem;
+  color: var(--color-text, #ffffff);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.cropper-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text, #ffffff);
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, color 0.2s;
+  line-height: 1;
+}
+
+.cropper-close-btn:hover {
+  transform: rotate(90deg);
+  color: var(--color-accent, #7289da);
+}
+
+.image-cropper-content {
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.crop-container {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.cropper-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.control-group label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--color-text, #ffffff);
+  text-transform: uppercase;
+  min-width: 60px;
+}
+
+.zoom-slider {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--color-accent, #7289da);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(114, 137, 218, 0.5);
+}
+
+.zoom-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--color-accent, #7289da);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.zoom-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(114, 137, 218, 0.5);
+}
+
+.zoom-value {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--color-accent, #7289da);
+  min-width: 40px;
+  text-align: right;
+}
+
+.image-cropper-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+}
+
+.cropper-cancel-btn,
+.cropper-save-btn {
+  padding: 0.75rem 1.5rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+  border-radius: 4px;
+  border: 1px solid;
+}
+
+.cropper-cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text, #ffffff);
+  border-color: var(--color-border, rgba(255, 255, 255, 0.1));
+}
+
+.cropper-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cropper-save-btn {
+  background: var(--color-accent, #7289da);
+  color: var(--color-text, #ffffff);
+  border-color: var(--color-accent, #7289da);
+}
+
+.cropper-save-btn:hover {
+  background: rgba(114, 137, 218, 0.85);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(114, 137, 218, 0.3);
+}
+
+
+
+
+
+

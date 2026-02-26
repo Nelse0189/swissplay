@@ -1,0 +1,641 @@
+/* Page wrapper styles */
+.find-scrims-page {
+  min-height: calc(100vh - 70px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.find-scrims-page .content-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  flex: 1;
+}
+
+.find-scrims-page .dashboard-content {
+  position: relative;
+  z-index: 2;
+  padding: 4rem 2rem;
+  max-width: 1800px;
+  margin: 0 auto;
+  width: 95%;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 3rem;
+  color: var(--color-text);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.mock-toggle {
+  display: flex;
+  align-items: center;
+}
+
+/* Additions to FindScrims.css to match new digital style */
+.filters-section {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  position: relative;
+  z-index: 10;
+}
+
+.team-selector-container {
+  margin-bottom: 2rem;
+  max-width: 400px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.team-selector-container .form-group {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+  margin: 0;
+}
+
+.matching-teams-section {
+  position: relative;
+  z-index: 1;
+}
+
+.matching-teams-subtitle {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin: -0.5rem 0 1.5rem 0;
+}
+
+.teams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.team-card {
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  padding: 1.5rem;
+  transition: all 0.2s;
+  border-radius: 8px;
+  box-sizing: border-box;
+  margin: 0;
+  position: relative;
+  overflow: visible;
+}
+
+.team-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  background: rgba(var(--color-text-rgb), 0.08);
+  box-shadow: var(--shadow-lg);
+}
+
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 1rem;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.team-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  padding: 0;
+  margin: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.team-card-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  object-fit: cover;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.team-card-header-info {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.team-card h3 {
+  margin: 0 0 0.25rem 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.2rem;
+  color: var(--color-text);
+}
+
+.team-card-players {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
+}
+
+.team-card-players h4 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.75rem 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.team-players-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.team-player-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  transition: all 0.2s;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.team-player-item:hover {
+  background: rgba(var(--color-text-rgb), 0.05);
+  border-color: var(--color-accent);
+  transform: translateX(2px);
+}
+
+.team-player-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  background: transparent;
+}
+
+.team-player-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.team-card-meta {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.reliability-badge {
+  font-weight: 600;
+}
+
+.reliability-badge.reliability-high {
+  color: #4ade80;
+}
+
+.reliability-badge.reliability-medium {
+  color: #fbbf24;
+}
+
+.reliability-badge.reliability-low {
+  color: #f87171;
+}
+
+.suggested-badge {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.match-score-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0;
+  align-self: flex-start;
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matching-slots {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1.25rem;
+  margin-top: 0.5rem;
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
+}
+
+.slot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  margin-left: 0;
+  margin-right: 0;
+  background: transparent;
+  padding: 0.5rem;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.slot-time {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+}
+
+.request-btn-small {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: 1px solid var(--color-accent);
+  padding: 0.25rem 0.75rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.request-btn-small:hover {
+  background: rgba(var(--color-accent-rgb), 0.8);
+  transform: scale(1.05);
+}
+
+.requests-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.request-card {
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: all 0.2s;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+}
+
+.request-card:hover {
+  background: rgba(var(--color-text-rgb), 0.08);
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+}
+
+.request-card.incoming {
+  border-left: 3px solid var(--color-accent);
+}
+
+.request-card.outgoing {
+  border-left: 3px solid var(--color-accent);
+}
+
+.request-card p {
+  margin: 0.4rem 0;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.request-card p:last-of-type {
+  margin-top: auto;
+}
+
+.request-time {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.request-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Custom Accept Button - SwissPlay Theme */
+.accept-btn {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: 1px solid var(--color-accent);
+  padding: 0.4rem 0.8rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+  flex: 1;
+  border-radius: 4px;
+}
+
+.accept-btn:hover {
+  background: rgba(var(--color-accent-rgb), 0.8);
+  border-color: rgba(var(--color-accent-rgb), 0.8);
+}
+
+.accept-btn:active {
+  background: rgba(var(--color-accent-rgb), 0.7);
+}
+
+/* Custom Reject Button - Deep Blue Theme */
+.reject-btn {
+  background: var(--color-background-light);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.8rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+  flex: 1;
+  border-radius: 4px;
+}
+
+.reject-btn:hover {
+  background: rgba(var(--color-text-rgb), 0.15);
+  border-color: var(--color-border);
+}
+
+.reject-btn:active {
+  background: var(--color-background-light);
+}
+
+.empty-text {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.status-text {
+  font-family: 'Share Tech Mono', monospace;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.status-pending { color: var(--color-text-secondary); }
+.status-accepted { color: var(--color-accent); }
+.status-rejected { color: var(--color-text-secondary); }
+
+.status-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  background: var(--color-background-light);
+  border: 1px solid var(--color-border);
+}
+
+.status-badge.status-pending {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+.status-badge.status-accepted {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb), 0.1);
+}
+
+.status-badge.status-rejected {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+  text-decoration: line-through;
+}
+
+.status-badge.status-locked {
+  color: #fbbf24;
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  cursor: default;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 4rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.5rem;
+  color: var(--color-text);
+}
+
+.auth-prompt-container {
+  text-align: center;
+  padding: 4rem;
+  background: var(--color-background-card);
+  max-width: 400px;
+  margin: 4rem auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.auth-prompt-container h2 {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text);
+  margin-bottom: 1rem;
+}
+
+.auth-prompt-container p {
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text-secondary);
+}
+
+.matching-teams-section h2,
+.requests-section h2 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.8rem;
+  color: var(--color-text);
+  margin-bottom: 1.5rem;
+  border-left: 4px solid var(--color-accent);
+  padding-left: 1rem;
+}
+
+.incoming-requests h3,
+.outgoing-requests h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.2rem;
+  color: var(--color-text);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+}
+
+.no-teams {
+  text-align: center;
+  padding: 3rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.review-btn {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: 1px solid var(--color-accent);
+  padding: 0.5rem 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+  border-radius: 4px;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.review-btn:hover {
+  background: rgba(var(--color-accent-rgb), 0.8);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(var(--color-accent-rgb), 0.3);
+}
+
+.reviewed-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: #4caf50;
+  margin-top: 0.75rem;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.cancel-btn {
+  background: var(--color-background-light);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.8rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+  border-radius: 4px;
+  width: 100%;
+}
+
+.cancel-btn:hover {
+  background: rgba(var(--color-text-rgb), 0.15);
+  border-color: var(--color-border);
+}
+
+.cancel-btn.penalty-warning {
+  background: #ff9800;
+  color: #ffffff;
+  border-color: #ff9800;
+}
+
+.cancel-btn.penalty-warning:hover {
+  background: #f57c00;
+  border-color: #f57c00;
+}
+
+.no-show-btn {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  border: 1px solid #f87171;
+  padding: 0.4rem 0.8rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  transition: all 0.2s;
+}
+
+.no-show-btn:hover {
+  background: rgba(248, 113, 113, 0.3);
+  transform: translateY(-1px);
+}
+
+.no-show-reported-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 0.5rem;
+  font-weight: bold;
+}
