@@ -34,14 +34,38 @@ function getFirestore() {
 }
 
 // --- Handler: add-player ---
-async function addPlayerToTeam(db, team, user) {
-  const existingMember = team.members?.find(m => m.discordId === user.id);
-  if (existingMember) throw new Error('Player is already on this team.');
+async function addPlayerToTeam(db, team, user, playerRolesStr) {
+  const playerRoles = playerRolesStr ? playerRolesStr.split(',').map(r => r.trim()) : [];
+  
+  const existingMemberIndex = team.members?.findIndex(m => m.discordId === user.id) ?? -1;
+  
+  if (existingMemberIndex !== -1) {
+    const existingMember = team.members[existingMemberIndex];
+    const roles = existingMember.roles || [];
+    
+    if (!roles.includes('Player') || (playerRoles.length > 0 && JSON.stringify(existingMember.playerRoles) !== JSON.stringify(playerRoles))) {
+      const updatedMembers = [...team.members];
+      updatedMembers[existingMemberIndex] = {
+        ...existingMember,
+        roles: roles.includes('Player') ? roles : [...roles, 'Player'],
+        playerRoles: playerRoles.length > 0 ? playerRoles : (existingMember.playerRoles || [])
+      };
+      
+      await db.collection('teams').doc(team.id).update({
+        members: updatedMembers
+      });
+      return;
+    }
+    
+    throw new Error('Player is already on this team with this role.');
+  }
+  
   const newMember = {
     discordId: user.id,
     discordUsername: user.username,
     name: user.globalName || user.username,
     roles: ['Player'],
+    playerRoles: playerRoles,
     availability: [],
     availabilityText: 'Not set'
   };
@@ -54,6 +78,7 @@ async function handleAddPlayerSlash(interaction) {
   const db = getFirestore();
   const managerDiscordId = interaction.user.id;
   const playerUser = interaction.options.getUser('player');
+  const roleStr = interaction.options.getString('role');
   if (!playerUser) {
     await interaction.followUp({ content: '❌ Please specify a player to add.', ephemeral: true });
     return;
@@ -75,15 +100,51 @@ async function handleAddPlayerSlash(interaction) {
   const playerExistingTeam = allTeams.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .find(t => t.members?.some(m => m.discordId === playerUser.id));
+    
   if (playerExistingTeam) {
-    await interaction.followUp({
-      content: `❌ ${playerUser.username} is already on **${playerExistingTeam.name}**. Remove them first if you want to move them to another team.`,
-      ephemeral: true
-    });
-    return;
+    const isManagerTeam = managerTeams.some(t => t.id === playerExistingTeam.id);
+    
+    if (isManagerTeam) {
+      const existingMemberIndex = playerExistingTeam.members.findIndex(m => m.discordId === playerUser.id);
+      const member = playerExistingTeam.members[existingMemberIndex];
+      const playerRoles = roleStr ? roleStr.split(',').map(r => r.trim()) : [];
+      
+      if (member.roles?.includes('Player') && (playerRoles.length === 0 || JSON.stringify(member.playerRoles) === JSON.stringify(playerRoles))) {
+        await interaction.followUp({
+          content: `❌ ${playerUser.username} is already a Player on **${playerExistingTeam.name}** with this role.`,
+          ephemeral: true
+        });
+        return;
+      }
+      
+      const updatedMembers = [...playerExistingTeam.members];
+      const roles = member.roles || [];
+      updatedMembers[existingMemberIndex] = {
+        ...member,
+        roles: roles.includes('Player') ? roles : [...roles, 'Player'],
+        playerRoles: playerRoles.length > 0 ? playerRoles : (member.playerRoles || [])
+      };
+      
+      await db.collection('teams').doc(playerExistingTeam.id).update({
+        members: updatedMembers
+      });
+      
+      await interaction.followUp({
+        content: `✅ Updated ${playerUser.username} on **${playerExistingTeam.name}**!\n\nThey can now use \`/my-availability\` and \`/my-team\` to see their team info.`,
+        ephemeral: true
+      });
+      
+      return;
+    } else {
+      await interaction.followUp({
+        content: `❌ ${playerUser.username} is already on **${playerExistingTeam.name}**. Remove them first if you want to move them to another team.`,
+        ephemeral: true
+      });
+      return;
+    }
   }
   if (managerTeams.length === 1) {
-    await addPlayerToTeam(db, managerTeams[0], playerUser);
+    await addPlayerToTeam(db, managerTeams[0], playerUser, roleStr);
     await interaction.followUp({
       content: `✅ Added ${playerUser.username} to **${managerTeams[0].name}** as a Player!\n\nThey can now use \`/my-availability\` and \`/my-team\` to see their team info.`,
       ephemeral: true
@@ -109,6 +170,7 @@ async function handleAddPlayerSlash(interaction) {
     playerId: playerUser.id,
     playerUsername: playerUser.username,
     guildId,
+    roleStr: roleStr,
     teamIds: managerTeams.map(t => t.id),
     createdAt: new Date()
   });
@@ -151,7 +213,45 @@ async function handleAddPlayerTeamSelect(interaction, sessionCode) {
   }
   const team = { id: teamDoc.id, ...teamDoc.data() };
   const playerUser = { id: session.playerId, username: session.playerUsername };
-  await addPlayerToTeam(db, team, playerUser);
+  
+  const existingMemberIndex = team.members.findIndex(m => m.discordId === playerUser.id);
+  
+  if (existingMemberIndex !== -1) {
+    const member = team.members[existingMemberIndex];
+    const roleStr = session.roleStr;
+    const playerRoles = roleStr ? roleStr.split(',').map(r => r.trim()) : [];
+    
+    if (member.roles?.includes('Player') && (playerRoles.length === 0 || JSON.stringify(member.playerRoles) === JSON.stringify(playerRoles))) {
+      await interaction.followUp({
+        content: `❌ ${playerUser.username} is already a Player on **${team.name}** with this role.`,
+        ephemeral: true
+      });
+      await sessionRef.delete();
+      return;
+    }
+    
+    const updatedMembers = [...team.members];
+    const roles = member.roles || [];
+    updatedMembers[existingMemberIndex] = {
+      ...member,
+      roles: roles.includes('Player') ? roles : [...roles, 'Player'],
+      playerRoles: playerRoles.length > 0 ? playerRoles : (member.playerRoles || [])
+    };
+    
+    await db.collection('teams').doc(team.id).update({
+      members: updatedMembers
+    });
+    
+    await sessionRef.delete();
+    
+    await interaction.followUp({
+      content: `✅ Updated ${session.playerUsername} on **${team.name}**!`,
+      ephemeral: true
+    });
+    return;
+  }
+  
+  await addPlayerToTeam(db, team, playerUser, session.roleStr);
   await sessionRef.delete();
   await interaction.followUp({
     content: `✅ Added ${session.playerUsername} to **${team.name}** as a Player!`,
@@ -169,6 +269,75 @@ async function handleAddPlayerTeamSelect(interaction, sessionCode) {
     await discordApi.sendDM(session.playerId, { embeds: [discordApi.embedToApi(welcomeEmbed)] });
   } catch (dmError) {
     console.log('Could not DM player:', dmError.message);
+  }
+}
+
+// --- Handler: help ---
+async function handleVerifySrSlash(interaction) {
+  try {
+    await interaction.deferReply({ ephemeral: false });
+    
+    let battletag = interaction.options.getString('battletag');
+    const platform = interaction.options.getString('platform');
+    const region = interaction.options.getString('region');
+    
+    // Replace # with - for the API
+    battletag = battletag.replace('#', '-');
+    
+    const url = `https://best-overwatch-api.herokuapp.com/player/${platform}/${region}/${battletag}`;
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.private) {
+        await interaction.followUp({ content: `❌ The profile for **${battletag}** is private. Please set it to public in Overwatch to verify SR.` });
+        return;
+      }
+      
+      const rank = data.competitive?.rank;
+      
+      if (!rank) {
+        await interaction.followUp({ content: `⚠️ No competitive rank found for **${battletag}**.` });
+        return;
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`🏆 SR Verification: ${data.username || battletag}`)
+        .addFields(
+          { name: 'Level', value: data.level ? data.level.toString() : 'Unknown', inline: true },
+          { name: 'Skill Rating', value: rank.toString(), inline: true }
+        )
+        .setColor(0x00ff00);
+        
+      if (data.competitive?.rank_img) {
+        embed.setThumbnail(data.competitive.rank_img);
+      } else if (data.portrait) {
+        embed.setThumbnail(data.portrait);
+      }
+        
+      await interaction.followUp({ embeds: [embed] });
+      
+    } catch (apiError) {
+      console.error('Overwatch API Error:', apiError);
+      
+      // Fallback or error message since Herokuapp might be down
+      await interaction.followUp({ 
+        content: `❌ Could not fetch data for **${battletag}**. The Overwatch API might be down or the BattleTag is incorrect.\n\n*Error: ${apiError.message}*` 
+      });
+    }
+  } catch (error) {
+    console.error('Error handling verify-sr command:', error);
+    await interaction.followUp({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
   }
 }
 
@@ -266,6 +435,9 @@ async function routeInteraction(interaction) {
   if (type === 2) {
     const commandName = data?.name || interaction.commandName;
     switch (commandName) {
+      case 'verify-sr':
+        await handleVerifySrSlash(interaction);
+        break;
       case 'add-player':
         await handleAddPlayerSlash(interaction);
         break;

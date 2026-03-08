@@ -15,7 +15,7 @@ export async function handleAvailabilityRequest(message, args) {
   const team = await getTeamByManagerDiscordId(managerDiscordId);
   
   if (!team) {
-    message.reply('❌ You are not linked as a manager of any team. Use `!link` to link your Discord account.');
+    message.reply('❌ You are not linked as a manager of any team. Please link your Discord account from the website.');
     return;
   }
 
@@ -26,20 +26,16 @@ export async function handleAvailabilityRequest(message, args) {
   // Check if "all" keyword is used
   const sendToAll = args.includes('all') || mentionedDiscordIds.length === 0;
   
-  // Parse date and time (skip "all" and mentions)
-  let scrimDate = null;
-  let scrimTime = null;
-  const dateTimeArgs = args.filter(arg => 
+  // Parse time period (skip "all" and mentions)
+  let timePeriod = null;
+  const periodArgs = args.filter(arg => 
     !arg.startsWith('<@') && 
     !arg.endsWith('>') && 
     arg !== 'all'
   );
   
-  if (dateTimeArgs.length >= 1) {
-    scrimDate = dateTimeArgs[0];
-  }
-  if (dateTimeArgs.length >= 2) {
-    scrimTime = dateTimeArgs[1];
+  if (periodArgs.length >= 1) {
+    timePeriod = periodArgs[0];
   }
 
   // Get all players from the team
@@ -56,7 +52,7 @@ export async function handleAvailabilityRequest(message, args) {
   let targetPlayers = allTeamPlayers.filter(p => p.discordId);
 
   if (targetPlayers.length === 0) {
-    message.reply('❌ No players have linked their Discord accounts. Use `!link` to link players.');
+    message.reply('❌ No players have linked their Discord accounts. Players must link their Discord accounts from the website.');
     return;
   }
 
@@ -65,7 +61,7 @@ export async function handleAvailabilityRequest(message, args) {
     targetPlayers = targetPlayers.filter(p => mentionedDiscordIds.includes(p.discordId));
     
     if (targetPlayers.length === 0) {
-      message.reply('❌ None of the mentioned players are linked to your team. Use `!link` to link them first.');
+      message.reply('❌ None of the mentioned players are linked to your team. They must link their Discord accounts from the website first.');
       return;
     }
     
@@ -85,8 +81,7 @@ export async function handleAvailabilityRequest(message, args) {
     teamId: team.id,
     managerDiscordId,
     managerName: message.author.username,
-    scrimDate: scrimDate || null,
-    scrimTime: scrimTime || null,
+    timePeriod: timePeriod || null,
     createdAt: new Date(),
     responses: {},
     status: 'pending'
@@ -105,11 +100,8 @@ export async function handleAvailabilityRequest(message, args) {
       { name: 'Requested by', value: message.author.username, inline: true }
     );
 
-  if (scrimDate) {
-    embed.addFields({ name: 'Scrim Date', value: scrimDate, inline: true });
-  }
-  if (scrimTime) {
-    embed.addFields({ name: 'Scrim Time', value: scrimTime, inline: true });
+  if (timePeriod) {
+    embed.addFields({ name: 'Time Period', value: timePeriod, inline: true });
   }
 
   embed.addFields({

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, storage } from '../firebase/config';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 import Modal from '../components/UI/Modal';
@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import { OW_RANK_OPTIONS_FOR_DROPDOWN, getRankValueForSr, getSrForRankValue } from '../utils/overwatchRanks';
+import { createNotification } from '../utils/notifications';
 import './EditProfile.css';
 
 const EditProfile = () => {
@@ -147,10 +148,13 @@ const EditProfile = () => {
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
       
+      const newSr = getSrForRankValue(formData.skillRating);
+      const srChanged = userDoc.exists() && userDoc.data().skillRating !== newSr;
+
       const updateData = {
         displayName: formData.displayName,
         photoURL: formData.photoURL || null,
-        skillRating: getSrForRankValue(formData.skillRating),
+        skillRating: newSr,
         bio: formData.bio,
         updatedAt: new Date()
       };
@@ -163,6 +167,26 @@ const EditProfile = () => {
           email: user.email,
           uid: user.uid,
           createdAt: new Date()
+        });
+      }
+
+      if (srChanged) {
+        // Find user's teams and notify managers
+        const teamsSnapshot = await getDocs(collection(db, 'teams'));
+        teamsSnapshot.docs.forEach(teamDoc => {
+          const team = teamDoc.data();
+          if (team.members && team.members.some(m => m.uid === user.uid)) {
+            team.members.forEach(m => {
+              if ((m.roles?.includes('Manager') || m.roles?.includes('Owner')) && m.uid !== user.uid) {
+                createNotification(m.uid, {
+                  type: 'profile_update',
+                  title: 'Player Profile Updated',
+                  message: `${formData.displayName} has updated their SR to ${formData.skillRating}.`,
+                  actionData: { teamId: teamDoc.id, userId: user.uid }
+                });
+              }
+            });
+          }
         });
       }
 

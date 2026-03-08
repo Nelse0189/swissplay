@@ -98,3 +98,53 @@
     grid-template-columns: 1fr;
   }
 }
+
+.font-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.font-card {
+  background: var(--color-background-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.font-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.font-card.selected {
+  border-color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb), 0.05);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.font-preview {
+  font-size: 1.5rem;
+  color: var(--color-text);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.font-name {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  font-family: 'Share Tech Mono', monospace;
+}

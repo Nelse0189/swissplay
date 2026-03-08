@@ -15,7 +15,7 @@ export async function handleListPlayers(message) {
   }
 
   const players = team.members.filter(m => 
-    m.roles && (m.roles.includes('Player') || m.roles.includes('Coach'))
+    m.roles && (m.roles.includes('Player') || m.roles.includes('Coach') || m.roles.includes('Manager') || m.roles.includes('Owner'))
   );
 
   if (players.length === 0) {

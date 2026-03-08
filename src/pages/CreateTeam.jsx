@@ -5,6 +5,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
+import { OVERWATCH_RANK_OPTIONS } from '../constants/overwatchRanks';
 import './CreateTeam.css';
 
 const CreateTeam = () => {
@@ -18,7 +19,7 @@ const CreateTeam = () => {
     name: '',
     abbreviation: '',
     region: 'NA',
-    sr: '',
+    sr: 'Champion 1',
     faceitDiv: 'Open'
   });
 
@@ -198,18 +199,14 @@ const CreateTeam = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>AVERAGE SR</label>
-                  <input
-                    type="number"
+                  <label>AVERAGE RANK</label>
+                  <CustomDropdown
+                    options={OVERWATCH_RANK_OPTIONS}
                     value={formData.sr}
-                    onChange={(e) => setFormData({ ...formData, sr: e.target.value })}
-                    className="custom-input"
-                    placeholder="e.g. 3500"
-                    min="0"
-                    max="5000"
+                    onChange={(value) => setFormData({ ...formData, sr: value })}
                     disabled={submitting}
                   />
-                  <p className="form-hint">Team's average skill rating</p>
+                  <p className="form-hint">Team's average Overwatch rank</p>
                 </div>
 
                 <div className="form-group">

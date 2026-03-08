@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import LoadingState from '../components/UI/LoadingState';
 import './PublicTeamProfile.css';
@@ -18,10 +18,25 @@ const PublicTeamProfile = () => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isModerator, setIsModerator] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists() && userDoc.data().isModerator === true) {
+            setIsModerator(true);
+          } else {
+            setIsModerator(false);
+          }
+        } catch (error) {
+          console.error('Error fetching moderator status:', error);
+        }
+      } else {
+        setIsModerator(false);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -94,6 +109,30 @@ const PublicTeamProfile = () => {
     );
   }
 
+  const handleModerateRemoveImage = async () => {
+    if (!isModerator || !teamData) return;
+    if (!window.confirm('As a moderator, are you sure you want to remove this team\'s image?')) return;
+    try {
+      await updateDoc(doc(db, 'teams', teamData.id), {
+        photoURL: null
+      });
+      setTeamData(prev => ({ ...prev, photoURL: null }));
+    } catch (error) {
+      console.error('Error removing team image:', error);
+    }
+  };
+
+  const handleModerateDeleteReview = async (reviewId) => {
+    if (!isModerator) return;
+    if (!window.confirm('As a moderator, are you sure you want to delete this review?')) return;
+    try {
+      await deleteDoc(doc(db, 'teamReviews', reviewId));
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+    } catch (error) {
+      console.error('Error deleting review:', error);
+    }
+  };
+
   const avgSR = calculateAvgSR();
   const isManager = currentUser && teamData.members?.some(
     m => m.uid === currentUser.uid && (m.roles?.includes('Manager') || m.roles?.includes('Owner'))
@@ -104,7 +143,7 @@ const PublicTeamProfile = () => {
       <div className="content-wrapper">
         <div className="team-content">
           <div className="team-header-section">
-            <div className="team-avatar-container">
+            <div className="team-avatar-container" style={{ position: 'relative' }}>
               <img 
                 src={teamData.photoURL || '/default-team.svg'} 
                 alt={teamData.name}
@@ -113,6 +152,32 @@ const PublicTeamProfile = () => {
                   e.target.src = '/default-team.svg';
                 }}
               />
+              {isModerator && teamData.photoURL && (
+                <button
+                  onClick={handleModerateRemoveImage}
+                  title="Remove Image (Moderator)"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    background: 'red',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    zIndex: 10
+                  }}
+                >
+                  X
+                </button>
+              )}
             </div>
             <div className="team-info-header">
               <div>
@@ -181,7 +246,29 @@ const PublicTeamProfile = () => {
                 <h3>REVIEWS ({reviews.length})</h3>
                 <div className="reviews-list">
                   {reviews.map(review => (
-                    <div key={review.id} className="review-item">
+                    <div key={review.id} className="review-item" style={{ position: 'relative' }}>
+                      {isModerator && (
+                        <button
+                          onClick={() => handleModerateDeleteReview(review.id)}
+                          title="Delete Review (Moderator)"
+                          style={{
+                            position: 'absolute',
+                            top: '10px',
+                            right: '10px',
+                            background: 'var(--color-danger, #ff4d4d)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold',
+                            zIndex: 10
+                          }}
+                        >
+                          DELETE
+                        </button>
+                      )}
                       <div className="review-header">
                         <span className="review-author">{review.fromTeamName || 'Anonymous'}</span>
                         <span className="review-date">

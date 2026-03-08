@@ -168,21 +168,33 @@
   min-width: 80px; /* Further reduced from 120px */
 }
 
+.logo-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.logo-text {
+  font-family: var(--logo-font, 'Orbitron', sans-serif);
+  font-weight: 900;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: var(--color-text);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.logo-link:hover .logo-text {
+  color: #E41E26;
+}
+
 .logo-svg {
   width: clamp(30px, 4vw, 40px); /* Responsive logo size */
   height: clamp(30px, 4vw, 40px);
   cursor: pointer;
 }
 
-.logo-svg circle, 
-.logo-svg path {
-  stroke: var(--color-text);
-}
-
-.logo-svg.logo-swiss circle,
-.logo-svg.logo-swiss rect {
-  stroke: none;
-}
 
 .rotating-ring {
   transform-origin: center;
@@ -212,6 +224,15 @@
   letter-spacing: 0.5px; /* Reduced letter spacing */
   transition: opacity 0.2s, color 0.2s;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-icon {
+  width: 1.1em;
+  height: 1.1em;
+  opacity: 0.8;
 }
 
 .nav-link:hover,
@@ -223,9 +244,9 @@
 .header-user-section {
   display: flex;
   align-items: center;
-  gap: clamp(0.4rem, 1vw, 1rem);
+  gap: clamp(0.3rem, 0.8vw, 0.75rem);
   justify-content: flex-end;
-  min-width: 100px; /* Further reduced from 120px */
+  min-width: 100px;
   outline: none;
   border: none;
 }

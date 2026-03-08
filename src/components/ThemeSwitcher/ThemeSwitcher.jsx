@@ -2,14 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { colorPalettes } from '../../styles/palettes';
 import './ThemeSwitcher.css';
 
+const logoFonts = [
+  'Univers',
+  'Helvetica Neue',
+  'Orbitron',
+  'Roboto',
+  'Montserrat',
+  'Open Sans',
+  'Lato',
+  'Oswald',
+  'Raleway',
+  'Poppins',
+  'Inter',
+  'Anton',
+  'Bebas Neue',
+  'Righteous',
+  'Playfair Display',
+  'Cinzel',
+  'Rajdhani',
+  'Audiowide',
+  'Russo One',
+  'Exo 2',
+  'Black Ops One',
+  'Bungee'
+];
+
 const ThemeSwitcher = () => {
   const [selectedPalette, setSelectedPalette] = useState('slate-steel');
   const [savedCustomThemes, setSavedCustomThemes] = useState([]);
+  const [selectedFont, setSelectedFont] = useState('Orbitron');
 
   useEffect(() => {
     // Load saved palette from localStorage
     const saved = localStorage.getItem('swissplay-color-palette');
     const savedCustom = localStorage.getItem('swissplay-custom-themes');
+    const savedFont = localStorage.getItem('swissplay-logo-font');
     
     if (savedCustom) {
       try {
@@ -25,7 +52,37 @@ const ThemeSwitcher = () => {
     } else {
       applyPalette('slate-steel');
     }
+
+    if (savedFont) {
+      handleFontChange(savedFont);
+    } else {
+      handleFontChange('Orbitron');
+    }
   }, []);
+
+  const loadFont = (fontName) => {
+    // Skip loading for system fonts or premium fonts not on Google Fonts
+    const skipGoogleFonts = ['Univers', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'];
+    if (skipGoogleFonts.includes(fontName)) {
+      return;
+    }
+
+    const fontId = `google-font-${fontName.replace(/\s+/g, '-')}`;
+    if (!document.getElementById(fontId)) {
+      const link = document.createElement('link');
+      link.id = fontId;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/\s+/g, '+')}:wght@400;700;900&display=swap`;
+      document.head.appendChild(link);
+    }
+  };
+
+  const handleFontChange = (fontName) => {
+    setSelectedFont(fontName);
+    loadFont(fontName);
+    document.documentElement.style.setProperty('--logo-font', `'${fontName}', sans-serif`);
+    localStorage.setItem('swissplay-logo-font', fontName);
+  };
 
   const hexToRgb = (hex) => {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -118,6 +175,32 @@ const ThemeSwitcher = () => {
               <span className="palette-desc">{palette.description}</span>
             </div>
             {selectedPalette === palette.id && (
+              <div className="selected-badge">ACTIVE</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="theme-header" style={{ marginTop: '3rem' }}>
+        <h2>LOGO FONT</h2>
+        <p className="theme-description">Customize the font used for the SWISSPLAY logo in the navigation bar.</p>
+      </div>
+
+      <div className="font-grid">
+        {logoFonts.map((font) => (
+          <div
+            key={font}
+            className={`font-card ${selectedFont === font ? 'selected' : ''}`}
+            onClick={() => handleFontChange(font)}
+          >
+            <div 
+              className="font-preview" 
+              style={{ fontFamily: `'${font}', sans-serif` }}
+            >
+              SWISSPLAY
+            </div>
+            <div className="font-name">{font}</div>
+            {selectedFont === font && (
               <div className="selected-badge">ACTIVE</div>
             )}
           </div>

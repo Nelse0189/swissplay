@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { updateTeamReliability } from '../../utils/teamReliability';
+import { createNotification } from '../../utils/notifications';
 import Modal from './Modal';
 import './ReviewModal.css';
 
-const ReviewModal = ({ isOpen, onClose, scrimRequest, myTeam, targetTeam, currentUser, useMockData, onReviewSubmitted }) => {
+const ReviewModal = ({ isOpen, onClose, scrimRequest, myTeam, targetTeam, currentUser, onReviewSubmitted }) => {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -22,54 +24,58 @@ const ReviewModal = ({ isOpen, onClose, scrimRequest, myTeam, targetTeam, curren
     setError('');
 
     try {
-      if (useMockData) {
-        // Mock review submission - use team name as ID for mock data
-        const mockReview = {
-          id: `review-${Date.now()}`,
-          teamId: targetTeam.name, // Use name as ID for mock data
-          teamName: targetTeam.name,
-          fromTeamId: myTeam.name, // Use name as ID for mock data
-          fromTeamName: myTeam.name,
-          rating: rating,
-          comment: comment.trim() || null,
-          createdAt: new Date(),
-          scrimRequestId: scrimRequest.id
-        };
-        onReviewSubmitted(mockReview);
-        onClose();
-        resetForm();
-      } else {
-        // Check if review already exists
-        const existingReviewQuery = query(
-          collection(db, 'teamReviews'),
-          where('teamId', '==', targetTeam.id),
-          where('fromTeamId', '==', myTeam.id),
-          where('scrimRequestId', '==', scrimRequest.id)
-        );
-        const existingReview = await getDocs(existingReviewQuery);
-        
-        if (!existingReview.empty) {
-          setError('You have already left a review for this scrim');
-          setSubmitting(false);
-          return;
-        }
-
-        // Create review
-        const reviewData = {
-          teamId: targetTeam.id,
-          fromTeamId: myTeam.id,
-          fromTeamName: myTeam.name,
-          rating: rating,
-          comment: comment.trim() || null,
-          createdAt: new Date(),
-          scrimRequestId: scrimRequest.id
-        };
-
-        await addDoc(collection(db, 'teamReviews'), reviewData);
-        onReviewSubmitted(reviewData);
-        onClose();
-        resetForm();
+      // Check if review already exists
+      const existingReviewQuery = query(
+        collection(db, 'teamReviews'),
+        where('teamId', '==', targetTeam.id),
+        where('fromTeamId', '==', myTeam.id),
+        where('scrimRequestId', '==', scrimRequest.id)
+      );
+      const existingReview = await getDocs(existingReviewQuery);
+      
+      if (!existingReview.empty) {
+        setError('You have already left a review for this scrim');
+        setSubmitting(false);
+        return;
       }
+
+      // Create review
+      const reviewData = {
+        teamId: targetTeam.id,
+        fromTeamId: myTeam.id,
+        fromTeamName: myTeam.name,
+        rating: rating,
+        comment: comment.trim() || null,
+        createdAt: new Date(),
+        scrimRequestId: scrimRequest.id
+      };
+
+      const docRef = await addDoc(collection(db, 'teamReviews'), reviewData);
+      
+      // Notify target team's managers
+      if (targetTeam.members) {
+        targetTeam.members.forEach(m => {
+          if (m.roles?.includes('Manager') || m.roles?.includes('Owner')) {
+            createNotification(m.uid, {
+              type: 'review',
+              title: 'New Team Review',
+              message: `${myTeam.name} left a ${rating}-star review for your team.`,
+              actionData: { teamId: targetTeam.id, reviewId: docRef.id }
+            });
+          }
+        });
+      }
+
+      // Update team reliability based on rating
+      const deltaMap = { 1: -5, 2: -2, 3: 0, 4: 2, 5: 5 };
+      const delta = deltaMap[rating] || 0;
+      if (delta !== 0) {
+        await updateTeamReliability(targetTeam.id, delta);
+      }
+
+      onReviewSubmitted(reviewData);
+      onClose();
+      resetForm();
     } catch (error) {
       console.error('Error submitting review:', error);
       setError('Failed to submit review. Please try again.');

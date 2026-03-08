@@ -4,7 +4,7 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import './PlayerProfileModal.css';
 
-const PlayerProfileModal = ({ isOpen, onClose, player, team, useMockData }) => {
+const PlayerProfileModal = ({ isOpen, onClose, player, team }) => {
   const [playerData, setPlayerData] = useState(null);
   const [playerTeams, setPlayerTeams] = useState([]);
   const [showTeamHistory, setShowTeamHistory] = useState(true);
@@ -15,10 +15,9 @@ const PlayerProfileModal = ({ isOpen, onClose, player, team, useMockData }) => {
     console.log('[PlayerProfileModal] Props changed:', {
       isOpen,
       player: player ? { name: player.name, uid: player.uid } : null,
-      team: team ? { id: team.id, name: team.name } : null,
-      useMockData
+      team: team ? { id: team.id, name: team.name } : null
     });
-  }, [isOpen, player, team, useMockData]);
+  }, [isOpen, player, team]);
 
   useEffect(() => {
     console.log('[PlayerProfileModal] State changed:', {
@@ -67,7 +66,7 @@ const PlayerProfileModal = ({ isOpen, onClose, player, team, useMockData }) => {
   }, [isOpen]);
 
   const loadPlayerData = async () => {
-    console.log('[PlayerProfileModal] loadPlayerData called:', { player, useMockData });
+    console.log('[PlayerProfileModal] loadPlayerData called:', { player });
     if (!player || !player.uid) {
       console.warn('[PlayerProfileModal] No player or uid provided');
       return;
@@ -75,53 +74,37 @@ const PlayerProfileModal = ({ isOpen, onClose, player, team, useMockData }) => {
     
     setLoading(true);
     try {
-      if (useMockData) {
-        console.log('[PlayerProfileModal] Using mock data');
-        // Mock data
-        const mockPlayerData = {
-          displayName: player.name,
-          bio: player.bio || 'No bio available.',
-          photoURL: player.photoURL || '/default-avatar.png',
-          teams: [
-            { id: team?.id || 'current-team', name: team?.name || 'Current Team', isCurrent: true }
-          ]
-        };
-        console.log('[PlayerProfileModal] Mock data created:', mockPlayerData);
-        setPlayerData(mockPlayerData);
-        setPlayerTeams(mockPlayerData.teams);
+      console.log('[PlayerProfileModal] Loading from Firestore');
+      // Load from Firestore
+      const userDoc = await getDoc(doc(db, 'users', player.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setPlayerData({
+          displayName: data.displayName || player.name,
+          bio: data.bio || 'No bio available.',
+          photoURL: data.photoURL || player.photoURL || '/default-avatar.png'
+        });
       } else {
-        console.log('[PlayerProfileModal] Loading from Firestore');
-        // Load from Firestore
-        const userDoc = await getDoc(doc(db, 'users', player.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setPlayerData({
-            displayName: data.displayName || player.name,
-            bio: data.bio || 'No bio available.',
-            photoURL: data.photoURL || player.photoURL || '/default-avatar.png'
-          });
-        } else {
-          // Fallback to player data from team
-          setPlayerData({
-            displayName: player.name,
-            bio: 'No bio available.',
-            photoURL: player.photoURL || '/default-avatar.png'
-          });
-        }
-
-        // Load teams the player is/was part of
-        const teamsSnapshot = await getDocs(collection(db, 'teams'));
-        const userTeams = teamsSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(t => t.members?.some(m => m.uid === player.uid))
-          .map(t => ({
-            id: t.id,
-            name: t.name,
-            photoURL: t.photoURL,
-            isCurrent: t.id === team?.id
-          }));
-        setPlayerTeams(userTeams);
+        // Fallback to player data from team
+        setPlayerData({
+          displayName: player.name,
+          bio: 'No bio available.',
+          photoURL: player.photoURL || '/default-avatar.png'
+        });
       }
+
+      // Load teams the player is/was part of
+      const teamsSnapshot = await getDocs(collection(db, 'teams'));
+      const userTeams = teamsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(t => t.members?.some(m => m.uid === player.uid))
+        .map(t => ({
+          id: t.id,
+          name: t.name,
+          photoURL: t.photoURL,
+          isCurrent: t.id === team?.id
+        }));
+      setPlayerTeams(userTeams);
     } catch (error) {
       console.error('[PlayerProfileModal] Error loading player data:', error);
     } finally {

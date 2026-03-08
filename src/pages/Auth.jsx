@@ -175,16 +175,32 @@ const Auth = () => {
               />
             </div>
             {error && <div className="error-message">{error}</div>}
-            <button type="submit" className="submit-btn" disabled={isLoading}>
+            <button type="submit" className="submit-btn" disabled={isLoading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+              {!isLoading && (isSignUp ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '1.2em', height: '1.2em' }}>
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="8.5" cy="7" r="4"></circle>
+                  <line x1="20" y1="8" x2="20" y2="14"></line>
+                  <line x1="23" y1="11" x2="17" y2="11"></line>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '1.2em', height: '1.2em' }}>
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                  <polyline points="10 17 15 12 10 7"></polyline>
+                  <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+              ))}
               {isLoading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
             </button>
           </form>
-          <p className="toggle-auth">
-            {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
-            <button onClick={() => setIsSignUp(!isSignUp)} className="toggle-btn">
-              {isSignUp ? 'Sign In' : 'Sign Up'}
+          <div className="toggle-auth-container">
+            <span className="toggle-auth-text">
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+            </span>
+            <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="toggle-btn">
+              {isSignUp ? 'Sign In to existing account' : 'Create a new account'}
             </button>
-          </p>
+          </div>
         </div>
       </div>
     </div>

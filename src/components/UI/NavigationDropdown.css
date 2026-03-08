@@ -43,26 +43,23 @@
   top: calc(100% + 0.5rem);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--color-background-card);
+  background: var(--color-primary, #191f2e);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 1rem;
   min-width: 250px;
   max-width: 300px;
   box-shadow: var(--shadow-lg);
-  z-index: 1000;
-  animation: dropdownFadeIn 0.2s ease-out;
-  backdrop-filter: blur(10px);
+  z-index: 99999;
+  animation: navDropdownFadeIn 0.15s ease-out;
 }
 
-@keyframes dropdownFadeIn {
+@keyframes navDropdownFadeIn {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-10px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -90,7 +87,7 @@
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   color: white;
-  font-size: 0.9rem;
+  font-size: 1rem;
   border-radius: 4px;
   transition: background-color 0.15s;
   margin-bottom: 0.25rem;
@@ -109,7 +106,7 @@
 }
 
 .nav-checkbox {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--color-text);
   width: 1rem;
   display: flex;

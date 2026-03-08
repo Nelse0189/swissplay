@@ -11,7 +11,10 @@ const CustomTabs = ({ tabs, activeTab, onChange }) => {
             className={`custom-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => onChange(tab.id)}
           >
-            <span className="tab-label">{tab.label}</span>
+            <span className="tab-label">
+              {tab.icon}
+              {tab.label}
+            </span>
             {activeTab === tab.id && <div className="tab-indicator" />}
           </button>
         ))}

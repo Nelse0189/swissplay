@@ -12,6 +12,7 @@ import {
 import { db, auth } from '../firebase/config';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
+import LftInviteModal from '../components/UI/LftInviteModal';
 import { OW_RANK_DIVISIONS, OW_RANK_OPTIONS_FOR_DROPDOWN, getRankLabel, getRankValueForSr } from '../utils/overwatchRanks';
 import './FreeAgents.css';
 
@@ -19,153 +20,22 @@ const ROLES = ['Tank', 'DPS', 'Support', 'Flex'];
 const REGIONS = ['NA', 'EU', 'OCE', 'Asia', 'SA'];
 const OW_RANKS = OW_RANK_DIVISIONS; // alias for filter logic
 
-// Mock free agents for local development / demo
-const MOCK_FREE_AGENTS = [
-  {
-    id: 'mock-fa-1',
-    uid: 'mock-fa-1',
-    displayName: 'Alex Chen',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['Tank', 'Flex'],
-    sr: 3250,
-    region: 'NA',
-    availability: 'Weekdays 6–10pm EST',
-    discordTag: 'alexchen#2847',
-    btag: 'AlexChen#11234',
-    bio: 'Reinhardt and Winston main. 2 years competitive experience. Looking for a structured team with regular scrims.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-2',
-    uid: 'mock-fa-2',
-    displayName: 'Jordan Blake',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['DPS'],
-    sr: 3750,
-    region: 'NA',
-    availability: 'Mon/Wed/Fri 7–9pm, weekends flexible',
-    discordTag: 'jblake',
-    btag: 'JordanB#22891',
-    bio: 'Hitscan specialist. Strong comms and ult tracking. Former Masters player looking to get back into the scene.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-3',
-    uid: 'mock-fa-3',
-    displayName: 'Sam Rivera',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['Support', 'Flex'],
-    sr: 2850,
-    region: 'NA',
-    availability: 'Evenings after 8pm EST',
-    bio: 'Ana and Kiriko main. IGL experience. Prefer teams that value shot-calling and coordination.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-4',
-    uid: 'mock-fa-4',
-    displayName: 'Morgan Hayes',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['Flex'],
-    sr: 2150,
-    region: 'EU',
-    availability: 'Weekdays 7–11pm CET',
-    bio: 'Comfortable on all roles. Gold/Plat level. New to competitive but eager to learn and improve.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-5',
-    uid: 'mock-fa-5',
-    displayName: 'Riley Park',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['Tank', 'DPS'],
-    sr: 4150,
-    region: 'NA',
-    availability: 'Tue/Thu/Sat 6–10pm PST',
-    discordTag: 'rileypark#1923',
-    bio: 'GM tank and DPS. OWL trials experience. Looking for a serious team aiming for contenders.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-6',
-    uid: 'mock-fa-6',
-    displayName: 'Casey Dunn',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['Support'],
-    sr: 3450,
-    region: 'EU',
-    availability: 'Weekends + Wed evenings',
-    bio: 'Main support specialist. Lucio, Mercy, Brig. Strong macro play and peel. EU-based.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-7',
-    uid: 'mock-fa-7',
-    displayName: 'Taylor Quinn',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['DPS', 'Flex'],
-    sr: 2650,
-    region: 'NA',
-    availability: 'Flexible, prefer weekends',
-    bio: 'Projectile DPS with flex to support. Good game sense, working on mechanics. Diamond goal.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-8',
-    uid: 'mock-fa-8',
-    displayName: 'Jamie Foster',
-    photoURL: '/default-avatar.png',
-    preferredRoles: ['Tank'],
-    sr: 3950,
-    region: 'OCE',
-    availability: 'AEST evenings, flexible weekends',
-    bio: 'Off-tank main. Sigma, D.Va, Zarya. OCE player looking for NA or OCE team. Can adjust schedule.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-9',
-    uid: 'mock-fa-9',
-    displayName: 'Marcus Webb',
-    photoURL: '/default-avatar.png',
-    listingType: 'coach',
-    preferredRoles: ['Tank', 'DPS', 'Support'],
-    sr: 4250,
-    region: 'NA',
-    availability: 'Weeknights 7–10pm EST, weekends',
-    discordTag: 'mwebb_coach#5521',
-    btag: 'CoachWebb#11892',
-    bio: 'Former contenders coach. VOD review, macro strategy, and team building. Specializing in helping Gold–Diamond teams level up. Free initial consultation.',
-    status: 'active',
-  },
-  {
-    id: 'mock-fa-10',
-    uid: 'mock-fa-10',
-    displayName: 'Diana Torres',
-    photoURL: '/default-avatar.png',
-    listingType: 'coach',
-    preferredRoles: ['Support', 'Flex'],
-    sr: 3850,
-    region: 'EU',
-    availability: 'Flexible, prefer EU evenings',
-    discordTag: 'dianatorres',
-    bio: 'Support specialist coach. Individual and team sessions. Focus on positioning, ult tracking, and shot-calling. 3+ years coaching experience.',
-    status: 'active',
-  },
-];
-
 const FreeAgents = () => {
   const [user, setUser] = useState(null);
+  const [isModerator, setIsModerator] = useState(false);
   const [activeTab, setActiveTab] = useState('browse'); // 'list' | 'browse'
   const [freeAgents, setFreeAgents] = useState([]);
   const [myListing, setMyListing] = useState(null);
+  const [managerTeams, setManagerTeams] = useState([]);
+  const [inviteModal, setInviteModal] = useState({ isOpen: false, agent: null });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [useMockData, setUseMockData] = useState(true);
   const navigate = useNavigate();
 
   // Form state for listing
   const [formData, setFormData] = useState({
     listingType: 'player',
+    teamName: '',
     preferredRoles: [],
     sr: '',
     region: '',
@@ -185,41 +55,66 @@ const FreeAgents = () => {
   });
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists() && userDoc.data().isModerator === true) {
+            setIsModerator(true);
+          } else {
+            setIsModerator(false);
+          }
+        } catch (error) {
+          console.error('Error fetching moderator status:', error);
+        }
+      } else {
+        setIsModerator(false);
+      }
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     loadFreeAgents();
-  }, [useMockData]);
+  }, []);
 
   useEffect(() => {
     if (user) {
       loadMyListing();
+      loadUserTeams();
     } else {
       setMyListing(null);
+      setManagerTeams([]);
     }
   }, [user]);
+
+  const loadUserTeams = async () => {
+    if (!user) return;
+    try {
+      const teamsSnapshot = await getDocs(collection(db, 'teams'));
+      const managedTeams = teamsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(t => t.members?.some(m => m.uid === user.uid && (m.roles?.includes('Manager') || m.roles?.includes('Owner'))));
+      setManagerTeams(managedTeams);
+    } catch (error) {
+      console.error('Error loading user teams:', error);
+    }
+  };
 
   const loadFreeAgents = async () => {
     setLoading(true);
     try {
-      if (useMockData) {
-        setFreeAgents(MOCK_FREE_AGENTS);
-      } else {
-        const snapshot = await getDocs(collection(db, 'freeAgents'));
-        const agents = snapshot.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((a) => a.status !== 'signed')
-          .sort((a, b) => {
-            const aTime = a.updatedAt?.toMillis?.() || 0;
-            const bTime = b.updatedAt?.toMillis?.() || 0;
-            return bTime - aTime;
-          });
-        setFreeAgents(agents);
-      }
+      const snapshot = await getDocs(collection(db, 'freeAgents'));
+      const agents = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((a) => a.status !== 'signed')
+        .sort((a, b) => {
+          const aTime = a.updatedAt?.toMillis?.() || 0;
+          const bTime = b.updatedAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+      setFreeAgents(agents);
     } catch (error) {
       console.error('Error loading free agents:', error);
       setFreeAgents([]);
@@ -238,6 +133,7 @@ const FreeAgents = () => {
         setMyListing({ id: snap.id, ...data });
         setFormData({
           listingType: data.listingType || 'player',
+          teamName: data.teamName || '',
           preferredRoles: data.preferredRoles || [],
           sr: getRankValueForSr(data.sr),
           region: data.region || '',
@@ -279,6 +175,7 @@ const FreeAgents = () => {
         email: user.email || null,
         photoURL: userData.photoURL || user.photoURL || null,
         listingType: formData.listingType || 'player',
+        teamName: formData.listingType === 'team' ? formData.teamName : null,
         preferredRoles: formData.preferredRoles.length ? formData.preferredRoles : ['Flex'],
         sr: formData.sr ? parseInt(formData.sr, 10) : null,
         region: formData.region || null,
@@ -307,10 +204,28 @@ const FreeAgents = () => {
     try {
       await deleteDoc(doc(db, 'freeAgents', user.uid));
       setMyListing(null);
-      setFormData({ listingType: 'player', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
+      setFormData({ listingType: 'player', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
       loadFreeAgents();
     } catch (error) {
       console.error('Error removing listing:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleModerateRemoveListing = async (listingId) => {
+    if (!isModerator) return;
+    if (!window.confirm('Are you sure you want to remove this listing as a moderator?')) return;
+    setSaving(true);
+    try {
+      await deleteDoc(doc(db, 'freeAgents', listingId));
+      if (myListing && myListing.id === listingId) {
+        setMyListing(null);
+        setFormData({ listingType: 'player', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
+      }
+      loadFreeAgents();
+    } catch (error) {
+      console.error('Error removing listing (moderator):', error);
     } finally {
       setSaving(false);
     }
@@ -337,19 +252,11 @@ const FreeAgents = () => {
           <div className="free-agents-header">
             <div className="header-row">
               <div>
-                <h1>FREE AGENTS</h1>
+                <h1>LFT / LFP</h1>
                 <p className="subtitle">
-                  Players looking for teams · Coaches offering services · Teams finding talent
+                  Players looking for teams · Teams finding talent · Coaches offering services
                 </p>
               </div>
-              <button
-                type="button"
-                className={`mock-toggle-btn ${useMockData ? 'on' : ''}`}
-                onClick={() => setUseMockData(!useMockData)}
-                title={useMockData ? 'Using mock data' : 'Using live data'}
-              >
-                {useMockData ? 'MOCK: ON' : 'MOCK: OFF'}
-              </button>
             </div>
           </div>
 
@@ -358,13 +265,13 @@ const FreeAgents = () => {
               className={`tab-btn ${activeTab === 'browse' ? 'active' : ''}`}
               onClick={() => setActiveTab('browse')}
             >
-              BROWSE FREE AGENTS
+              BROWSE LISTINGS
             </button>
             <button
               className={`tab-btn ${activeTab === 'list' ? 'active' : ''}`}
               onClick={() => setActiveTab('list')}
             >
-              {myListing ? 'EDIT MY LISTING' : 'LIST AS FREE AGENT'}
+              {myListing ? 'EDIT MY LISTING' : 'CREATE LISTING'}
             </button>
           </div>
 
@@ -372,8 +279,8 @@ const FreeAgents = () => {
             <div className="list-section">
               {!user ? (
                 <div className="auth-prompt">
-                  <h3>SIGN IN TO LIST AS A FREE AGENT</h3>
-                  <p>Create an account or sign in to add yourself to the free agent pool.</p>
+                  <h3>SIGN IN TO CREATE A LISTING</h3>
+                  <p>Create an account or sign in to add yourself or your team to the pool.</p>
                   <button className="save-btn" onClick={() => navigate('/auth')}>
                     SIGN IN
                   </button>
@@ -388,7 +295,14 @@ const FreeAgents = () => {
                         className={`role-chip ${formData.listingType === 'player' ? 'selected' : ''}`}
                         onClick={() => setFormData({ ...formData, listingType: 'player' })}
                       >
-                        Player
+                        Player (LFT)
+                      </button>
+                      <button
+                        type="button"
+                        className={`role-chip ${formData.listingType === 'team' ? 'selected' : ''}`}
+                        onClick={() => setFormData({ ...formData, listingType: 'team' })}
+                      >
+                        Team (LFP)
                       </button>
                       <button
                         type="button"
@@ -399,8 +313,26 @@ const FreeAgents = () => {
                       </button>
                     </div>
                   </div>
+                  
+                  {formData.listingType === 'team' && (
+                    <div className="form-group">
+                      <label>TEAM NAME</label>
+                      <input
+                        type="text"
+                        placeholder="Enter your team's name"
+                        value={formData.teamName}
+                        onChange={(e) => setFormData({ ...formData, teamName: e.target.value })}
+                        required
+                      />
+                    </div>
+                  )}
+
                   <div className="form-group">
-                    <label>{formData.listingType === 'coach' ? 'ROLES I COACH' : 'PREFERRED ROLES'}</label>
+                    <label>
+                      {formData.listingType === 'coach' ? 'ROLES I COACH' : 
+                       formData.listingType === 'team' ? 'ROLES NEEDED' : 
+                       'PREFERRED ROLES'}
+                    </label>
                     <div className="roles-row">
                       {ROLES.map((role) => (
                         <button
@@ -416,7 +348,7 @@ const FreeAgents = () => {
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>RANK</label>
+                      <label>{formData.listingType === 'team' ? 'AVERAGE RANK' : 'RANK'}</label>
                       <CustomDropdown
                         options={OW_RANK_OPTIONS_FOR_DROPDOWN.map((r) => ({ value: r.value, label: r.label }))}
                         value={formData.sr}
@@ -438,10 +370,10 @@ const FreeAgents = () => {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>AVAILABILITY</label>
+                    <label>{formData.listingType === 'team' ? 'PRACTICE / SCRIM SCHEDULE' : 'AVAILABILITY'}</label>
                     <input
                       type="text"
-                      placeholder="e.g. Weekdays 6-10pm, Mon/Wed/Fri 7-9pm"
+                      placeholder={formData.listingType === 'team' ? "e.g. Scrims Mon/Wed/Fri 8-10pm EST" : "e.g. Weekdays 6-10pm, Mon/Wed/Fri 7-9pm"}
                       value={formData.availability}
                       onChange={(e) => setFormData({ ...formData, availability: e.target.value })}
                     />
@@ -467,11 +399,13 @@ const FreeAgents = () => {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>BIO / PITCH</label>
+                    <label>{formData.listingType === 'team' ? 'TEAM BIO / REQUIREMENTS' : 'BIO / PITCH'}</label>
                     <textarea
                       rows={4}
                       placeholder={formData.listingType === 'coach'
                         ? "Describe your coaching experience, services offered (VOD review, team sessions, etc.), and what you're looking for..."
+                        : formData.listingType === 'team'
+                        ? "Describe your team, goals, and what kind of players you are looking for..."
                         : "Tell teams about yourself, your experience, and what you're looking for..."}
                       value={formData.bio}
                       onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
@@ -479,7 +413,7 @@ const FreeAgents = () => {
                   </div>
                   <div className="form-actions">
                     <button type="submit" className="save-btn" disabled={saving}>
-                      {saving ? 'SAVING...' : myListing ? 'UPDATE LISTING' : formData.listingType === 'coach' ? 'LIST COACHING SERVICES' : 'LIST AS FREE AGENT'}
+                      {saving ? 'SAVING...' : myListing ? 'UPDATE LISTING' : formData.listingType === 'coach' ? 'LIST COACHING SERVICES' : formData.listingType === 'team' ? 'LIST TEAM (LFP)' : 'LIST AS PLAYER (LFT)'}
                     </button>
                     {myListing && (
                       <button
@@ -505,7 +439,8 @@ const FreeAgents = () => {
                   <CustomDropdown
                     options={[
                       { value: '', label: 'All' },
-                      { value: 'player', label: 'Players' },
+                      { value: 'player', label: 'Players (LFT)' },
+                      { value: 'team', label: 'Teams (LFP)' },
                       { value: 'coach', label: 'Coaches' },
                     ]}
                     value={filters.listingType}
@@ -570,13 +505,13 @@ const FreeAgents = () => {
               </div>
 
               {loading ? (
-                <LoadingState message="Loading free agents..." />
+                <LoadingState message="Loading listings..." />
               ) : filteredAgents.length === 0 ? (
                 <div className="empty-state">
-                  <h3>NO FREE AGENTS FOUND</h3>
+                  <h3>NO LISTINGS FOUND</h3>
                   <p>
                     {freeAgents.length === 0
-                      ? 'Be the first to list yourself as a free agent!'
+                      ? 'Be the first to create a listing!'
                       : 'Try adjusting your filters.'}
                   </p>
                 </div>
@@ -584,45 +519,109 @@ const FreeAgents = () => {
                 <div className="agents-grid">
                   {filteredAgents.map((agent) => (
                     <div key={agent.id} className="agent-card">
-                      <div className="agent-avatar-wrap">
-                        <img
-                          src={agent.photoURL || '/default-avatar.png'}
-                          alt={agent.displayName}
-                          onError={(e) => {
-                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI0MCIgY3k9IjQwIiByPSI0MCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PHBhdGggZD0iTTQwIDI0YzguODM3IDAgMTYgNy4xNjMgMTYgMTZzLTcuMTYzIDE2LTE2IDE2LTE2LTcuMTYzLTE2LTE2IDcuMTYzLTE2IDE2LTE2ek00MCA0OGMtMTMuMjU1IDAtMjQgOC45MzctMjQgMjBoNDhjMC0xMS4wNjMtMTAuNzQ1LTIwLTI0LTIweiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjUpIi8+PC9zdmc+';
-                          }}
-                        />
-                      </div>
-                      <div className="agent-info">
-                        <h3>
-                          {agent.displayName || 'Unknown'}
-                          {(agent.listingType || 'player') === 'coach' && (
-                            <span className="listing-type-badge coach">Coach</span>
-                          )}
-                        </h3>
-                        <div className="agent-meta">
-                          {(agent.preferredRoles || []).length > 0 && (
-                            <span className="meta-tag roles">
-                              {(agent.preferredRoles || []).join(', ')}
+                      
+                      <div className="agent-card-left">
+                        <div className="agent-avatar-wrap">
+                          <img
+                            src={agent.photoURL || '/default-avatar.png'}
+                            alt={agent.listingType === 'team' ? agent.teamName : agent.displayName}
+                            onError={(e) => {
+                              e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI0MCIgY3k9IjQwIiByPSI0MCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PHBhdGggZD0iTTQwIDI0YzguODM3IDAgMTYgNy4xNjMgMTYgMTZzLTcuMTYzIDE2LTE2IDE2LTE2LTcuMTYzLTE2LTE2IDcuMTYzLTE2IDE2LTE2ek00MCA0OGMtMTMuMjU1IDAtMjQgOC45MzctMjQgMjBoNDhjMC0xMS4wNjMtMTAuNzQ1LTIwLTI0LTIweiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjUpIi8+PC9zdmc+';
+                            }}
+                          />
+                        </div>
+                        <div className="agent-primary-info">
+                          <h3>
+                            {agent.listingType === 'team' ? (agent.teamName || 'Unknown Team') : (agent.displayName || 'Unknown')}
+                            {(agent.listingType || 'player') === 'coach' && (
+                              <span className="listing-type-badge coach">Coach</span>
+                            )}
+                            {agent.listingType === 'team' && (
+                              <span className="listing-type-badge team" style={{background: 'rgba(255, 193, 7, 0.25)', color: '#ffc107', border: '1px solid #ffc107'}}>Team (LFP)</span>
+                            )}
+                          </h3>
+                          {agent.listingType === 'team' && agent.displayName && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '-0.25rem' }}>
+                              Posted by {agent.displayName}
                             </span>
                           )}
-                          {agent.sr && <span className="meta-tag sr">{getRankLabel(agent.sr)}</span>}
-                          {agent.region && <span className="meta-tag region">{agent.region}</span>}
+                          <div className="agent-meta">
+                            {(agent.preferredRoles || []).length > 0 && (
+                              <span className="meta-tag roles">
+                                {(agent.preferredRoles || []).join(', ')}
+                              </span>
+                            )}
+                            {agent.sr && <span className="meta-tag sr">{getRankLabel(agent.sr)}</span>}
+                            {agent.region && <span className="meta-tag region">{agent.region}</span>}
+                          </div>
                         </div>
-                        {agent.availability && (
-                          <p className="agent-availability">{agent.availability}</p>
-                        )}
-                        {(agent.discordTag || agent.btag) && (
-                          <p className="agent-contacts">
-                            {agent.discordTag && <span>Discord: {agent.discordTag}</span>}
-                            {agent.discordTag && agent.btag && ' · '}
-                            {agent.btag && <span>Bnet: {agent.btag}</span>}
-                          </p>
-                        )}
-                        {agent.bio && (
+                      </div>
+
+                      <div className="agent-card-middle">
+                        <div className="agent-schedule-contact">
+                          {agent.availability && (
+                            <div className="availability-block">
+                              <span className="section-label">{agent.listingType === 'team' ? 'SCHEDULE' : 'AVAILABILITY'}</span>
+                              <p className="agent-availability">{agent.availability}</p>
+                            </div>
+                          )}
+                          {(agent.discordTag || agent.btag) && (
+                            <div className="agent-contacts">
+                              <span className="section-label">CONTACT INFO</span>
+                              <div className="contact-list">
+                                {agent.discordTag && (
+                                  <span className="contact-item">
+                                    <span className="contact-label">Discord:</span> {agent.discordTag}
+                                  </span>
+                                )}
+                                {agent.btag && (
+                                  <span className="contact-item">
+                                    <span className="contact-label">Bnet:</span> {agent.btag}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="agent-card-right">
+                        <span className="section-label">{agent.listingType === 'team' ? 'TEAM BIO / REQS' : 'BIO'}</span>
+                        {agent.bio ? (
                           <p className="agent-bio">{agent.bio}</p>
+                        ) : (
+                          <p className="agent-bio empty">No bio provided.</p>
+                        )}
+                        {isModerator && (
+                          <button
+                            onClick={() => handleModerateRemoveListing(agent.id)}
+                            style={{
+                              marginTop: 'auto',
+                              padding: '0.4rem 0.8rem',
+                              backgroundColor: 'var(--color-danger, #ff4d4d)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              alignSelf: 'flex-start',
+                              fontSize: '0.8rem',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            REMOVE (MOD)
+                          </button>
+                        )}
+                        {managerTeams.length > 0 && agent.listingType !== 'team' && agent.uid !== user?.uid && (
+                          <button
+                            onClick={() => setInviteModal({ isOpen: true, agent })}
+                            className="save-btn"
+                            style={{ marginTop: isModerator ? '0.5rem' : 'auto', alignSelf: 'flex-start' }}
+                          >
+                            INVITE TO TEAM
+                          </button>
                         )}
                       </div>
+
                     </div>
                   ))}
                 </div>
@@ -631,6 +630,14 @@ const FreeAgents = () => {
           )}
         </div>
       </div>
+
+      <LftInviteModal 
+        isOpen={inviteModal.isOpen}
+        onClose={() => setInviteModal({ isOpen: false, agent: null })}
+        agent={inviteModal.agent}
+        managerTeams={managerTeams}
+        currentUser={user}
+      />
     </div>
   );
 };

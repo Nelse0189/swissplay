@@ -1,88 +1,92 @@
-import React, { useState, useEffect } from 'react';
-import CustomDropdown from '../UI/CustomDropdown';
+import React, { useState } from 'react';
 import './AvailabilityTab.css';
 
-const RANKS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Masters', 'Grandmaster', 'Champion'];
-const RANK_NUMBERS = [5, 4, 3, 2, 1]; // 1 is highest
-
-const AvailabilityTab = ({ currentUser, team, updateAvailability, updateSkillRange }) => {
+const AvailabilityTab = ({ currentUser, team }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const hours = Array.from({ length: 25 }, (_, i) => i);
   
   const currentMember = team.members.find(m => m.uid === currentUser.uid);
-  const userAvailability = currentMember?.availability || [];
-  const skillRange = currentMember?.skillRange || { minRank: '', minNumber: '', maxRank: '', maxNumber: '' };
+  const isManager = currentMember?.roles?.includes('Manager') || currentMember?.roles?.includes('Owner');
   
-  const [localSkillRange, setLocalSkillRange] = useState(skillRange);
+  const [selectedTeamSlots, setSelectedTeamSlots] = useState([]);
 
-  useEffect(() => {
-    setLocalSkillRange(skillRange);
-  }, [skillRange]);
+  const [hoveredWarningSlot, setHoveredWarningSlot] = useState(null);
 
-  const handleSkillRangeChange = (field, value) => {
-    const newRange = { ...localSkillRange, [field]: value };
-    setLocalSkillRange(newRange);
-    if (updateSkillRange) {
-      updateSkillRange(newRange);
+  const toggleTeamSlot = (day, hour) => {
+    if (!isManager) return;
+    const slot = `${day}-${hour}`;
+    if (selectedTeamSlots.includes(slot)) {
+      setSelectedTeamSlots(selectedTeamSlots.filter(s => s !== slot));
+    } else {
+      setSelectedTeamSlots([...selectedTeamSlots, slot]);
     }
   };
 
-  const getRankOptions = () => {
-    return RANKS.map(rank => ({ value: rank, label: rank }));
-  };
+  const getCompStatus = (availableMembers) => {
+    const requirements = { Tank: 1, DPS: 2, Support: 2 };
+    const membersWithRoles = availableMembers.filter(m => m.playerRoles && m.playerRoles.length > 0);
+    
+    let found = false;
+    let bestMatch = { Tank: 0, DPS: 0, Support: 0 };
+    let minMissingCount = 5;
+    
+    const backtrack = (memberIndex, currentCounts) => {
+      if (found) return;
+      
+      let missingCount = 
+        Math.max(0, requirements.Tank - currentCounts.Tank) + 
+        Math.max(0, requirements.DPS - currentCounts.DPS) + 
+        Math.max(0, requirements.Support - currentCounts.Support);
+        
+      if (missingCount < minMissingCount) {
+        minMissingCount = missingCount;
+        bestMatch = { ...currentCounts };
+      }
 
-  const getRankNumberOptions = () => {
-    return RANK_NUMBERS.map(num => ({ value: num.toString(), label: num.toString() }));
+      if (missingCount === 0) {
+        found = true;
+        return;
+      }
+      if (memberIndex >= membersWithRoles.length) return;
+      
+      backtrack(memberIndex + 1, currentCounts);
+      
+      const member = membersWithRoles[memberIndex];
+      for (let role of member.playerRoles) {
+        let normalizedRole = role.toLowerCase().includes('tank') ? 'Tank' 
+                           : role.toLowerCase().includes('dps') ? 'DPS' 
+                           : role.toLowerCase().includes('support') ? 'Support' : null;
+        if (normalizedRole && currentCounts[normalizedRole] < requirements[normalizedRole]) {
+          currentCounts[normalizedRole]++;
+          backtrack(memberIndex + 1, currentCounts);
+          currentCounts[normalizedRole]--;
+        }
+      }
+    };
+    
+    backtrack(0, { Tank: 0, DPS: 0, Support: 0 });
+    
+    if (found) return { hasComp: true, missingMessage: '' };
+    
+    const missing = [];
+    if (bestMatch.Tank < requirements.Tank) missing.push(`${requirements.Tank - bestMatch.Tank} Tank`);
+    if (bestMatch.DPS < requirements.DPS) missing.push(`${requirements.DPS - bestMatch.DPS} DPS`);
+    if (bestMatch.Support < requirements.Support) missing.push(`${requirements.Support - bestMatch.Support} Support`);
+    
+    return { hasComp: false, missingMessage: missing.join(', ') };
   };
 
   return (
     <div className="availability-tab">
       <div className="availability-header">
-        <h3>OPERATOR AVAILABILITY</h3>
+        <h3>TEAM AVAILABILITY</h3>
       </div>
 
-      <div className="skill-range-section">
-        <h3>SKILL RANGE</h3>
-        <p>SET YOUR COMPETITIVE RANK RANGE (FOR MANAGER MATCHING)</p>
-        <div className="skill-range-controls">
-          <div className="skill-range-group">
-            <label>MIN RANK</label>
-            <div className="skill-range-row">
-              <CustomDropdown
-                options={[{ value: '', label: '-- SELECT --' }, ...getRankOptions()]}
-                value={localSkillRange.minRank}
-                onChange={(value) => handleSkillRangeChange('minRank', value)}
-                placeholder="-- SELECT --"
-              />
-              <CustomDropdown
-                options={[{ value: '', label: '--' }, ...getRankNumberOptions()]}
-                value={localSkillRange.minNumber}
-                onChange={(value) => handleSkillRangeChange('minNumber', value)}
-                placeholder="--"
-              />
-            </div>
-          </div>
-          <div className="skill-range-group">
-            <label>MAX RANK</label>
-            <div className="skill-range-row">
-              <CustomDropdown
-                options={[{ value: '', label: '-- SELECT --' }, ...getRankOptions()]}
-                value={localSkillRange.maxRank}
-                onChange={(value) => handleSkillRangeChange('maxRank', value)}
-                placeholder="-- SELECT --"
-              />
-              <CustomDropdown
-                options={[{ value: '', label: '--' }, ...getRankNumberOptions()]}
-                value={localSkillRange.maxNumber}
-                onChange={(value) => handleSkillRangeChange('maxNumber', value)}
-                placeholder="--"
-              />
-            </div>
-          </div>
-        </div>
+      <div className="team-availability-info" style={{ marginBottom: '1rem', fontFamily: "'Share Tech Mono', monospace", color: '#666', fontSize: '0.8rem' }}>
+        <p>SELECT NODES TO PROPOSE SCRIM TIMES. WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).</p>
       </div>
 
-      <div className="digital-grid-container">
+      <div className="digital-grid-container" onMouseLeave={() => setHoveredWarningSlot(null)}>
         <div className="grid-time-header">
           <div className="corner-spacer"></div>
           {hours.map(h => (
@@ -97,18 +101,62 @@ const AvailabilityTab = ({ currentUser, team, updateAvailability, updateSkillRan
             <div className="row-label">{day.substring(0, 3).toUpperCase()}</div>
             <div className="row-cells">
               {hours.map(hour => {
-                const isSelected = userAvailability.includes(`${day}-${hour}`);
+                const slot = `${day}-${hour}`;
+                const availableMembers = team.members.filter(m => m.availability && m.availability.includes(slot));
+                const isSelected = selectedTeamSlots.includes(slot);
+                const compStatus = getCompStatus(availableMembers);
+                const showWarning = isSelected && !compStatus.hasComp;
+                
+                const opacity = availableMembers.length > 0 ? 0.1 + (availableMembers.length / team.members.length) * 0.7 : 0.05;
+                const cellStyle = showWarning || isSelected ? {} : { background: availableMembers.length > 0 ? `rgba(26, 26, 26, ${opacity})` : '' };
+                
                 return (
                   <div
                     key={`${day}-${hour}`}
-                    className={`grid-cell ${isSelected ? 'active' : ''}`}
-                  />
+                    className={`grid-cell team-cell ${isSelected ? (showWarning ? 'warning' : 'active') : ''} ${!isManager ? 'disabled' : ''}`}
+                    style={cellStyle}
+                    onClick={() => toggleTeamSlot(day, hour)}
+                    onMouseEnter={() => {
+                      if (showWarning) {
+                        setHoveredWarningSlot({ day, hour, missing: compStatus.missingMessage });
+                      } else {
+                        setHoveredWarningSlot(null);
+                      }
+                    }}
+                    title={availableMembers.length > 0 ? `Available: ${availableMembers.map(m => m.name).join(', ')}` : 'No one available'}
+                  >
+                    {showWarning && <span className="warning-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '12px' }}>⚠️</span>}
+                  </div>
                 );
               })}
             </div>
           </div>
         ))}
       </div>
+
+      {hoveredWarningSlot && (
+        <div className="warning-explanation-popup" style={{
+          marginTop: '10px',
+          padding: '10px',
+          background: 'rgba(255, 50, 50, 0.1)',
+          border: '1px solid rgba(255, 50, 50, 0.5)',
+          borderRadius: '4px',
+          color: '#ff4444',
+          fontFamily: "'Share Tech Mono', monospace",
+          fontSize: '0.9rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'fadeIn 0.2s ease-in-out'
+        }}>
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <div>
+            <strong>{hoveredWarningSlot.day} {hoveredWarningSlot.hour.toString().padStart(2, '0')}:00</strong>
+            <br />
+            Cannot fulfill standard comp. Missing: {hoveredWarningSlot.missing}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

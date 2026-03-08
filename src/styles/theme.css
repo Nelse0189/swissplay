@@ -36,11 +36,8 @@
 /* Force all page containers to use theme */
 div[class*="page"] > div.content-wrapper,
 div.content-wrapper,
-div[class*="content"],
-div[class*="wrapper"],
-div[class*="dashboard"],
-div[class*="container"]:not([class*="modal"]):not([class*="dropdown"]):not([class*="selector"]):not([class*="form"]) {
-  background-color: var(--color-background) !important;
+div[class*="wrapper"] {
+  background-color: transparent !important;
   color: var(--color-text) !important;
 }
 
@@ -92,7 +89,7 @@ p, span, div, label,
 }
 
 /* Base Styles */
-html, body, #root {
+body, #root {
   background-color: var(--color-background);
   color: var(--color-text);
 }
@@ -105,12 +102,11 @@ body {
 }
 
 /* Layout Elements - Maximum Specificity */
-html, body, #root,
+#root,
 div.app,
 main.main-content,
 div.content-wrapper,
 div[class*="page"],
-div[class*="content"],
 .create-team-page,
 .auth-page,
 .find-scrims-page,
@@ -126,7 +122,7 @@ div[class*="content"],
 .revaluation-page,
 .public-profile-page,
 .public-team-page {
-  background-color: var(--color-background) !important;
+  background-color: transparent !important;
   color: var(--color-text) !important;
 }
 
@@ -247,7 +243,8 @@ button.save-btn:active, .action-btn:active {
 }
 
 /* Inputs */
-input.custom-input, select.custom-select, textarea.custom-textarea {
+input.custom-input, select.custom-input, textarea.custom-input,
+select.custom-select, textarea.custom-textarea {
   background-color: var(--color-background-light);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -257,7 +254,13 @@ input.custom-input, select.custom-select, textarea.custom-textarea {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-input.custom-input:focus {
+select.custom-input option, select.custom-select option {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+input.custom-input:focus, select.custom-input:focus, textarea.custom-input:focus,
+select.custom-select:focus, textarea.custom-textarea:focus {
   outline: none;
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.2);

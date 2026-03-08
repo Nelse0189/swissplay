@@ -5,11 +5,16 @@ import { db, auth, storage } from '../../firebase/config';
 import { useToast } from '../../context/ToastContext';
 import CustomDropdown from '../UI/CustomDropdown';
 import ImageCropper from '../UI/ImageCropper';
+import { OVERWATCH_RANK_OPTIONS } from '../../constants/overwatchRanks';
 
 const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const toast = useToast();
   const [teamName, setTeamName] = useState(team.name);
-  const [sr, setSr] = useState(team.sr || '');
+  const [sr, setSr] = useState(() => {
+    const v = team.sr;
+    if (typeof v === 'string' && OVERWATCH_RANK_OPTIONS.some((o) => o.value === v)) return v;
+    return 'Champion 1';
+  });
   const [region, setRegion] = useState(team.region || 'NA');
   const [faceitDiv, setFaceitDiv] = useState(team.faceitDiv || 'Open');
   const [teamPhotoURL, setTeamPhotoURL] = useState(team.photoURL || '');
@@ -426,13 +431,11 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
             />
           </div>
           <div className="form-group">
-            <label>AVERAGE SR</label>
-            <input 
-              type="number" 
-              value={sr} 
-              onChange={(e) => setSr(e.target.value)} 
-              placeholder="e.g. 3500"
-              className="custom-input"
+            <label>AVERAGE RANK</label>
+            <CustomDropdown
+              options={OVERWATCH_RANK_OPTIONS}
+              value={sr}
+              onChange={setSr}
             />
           </div>
           <div className="form-group">

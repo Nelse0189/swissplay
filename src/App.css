@@ -1,8 +1,13 @@
+#root {
+  background: transparent !important;
+}
+
 .app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   position: relative;
+  background: transparent !important;
 }
 
 .main-content {

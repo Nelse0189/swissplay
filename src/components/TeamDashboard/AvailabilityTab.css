@@ -15,6 +15,52 @@
   color: #1a1a1a;
 }
 
+.view-toggle {
+  display: flex;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid rgba(26, 26, 26, 0.2);
+}
+
+.toggle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 2px;
+}
+
+.toggle-btn:hover {
+  background: rgba(26, 26, 26, 0.05);
+}
+
+.toggle-btn.active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+.grid-cell.warning {
+  background: rgba(255, 50, 50, 0.8) !important;
+  border-color: red !important;
+  box-shadow: 0 0 5px rgba(255,0,0,0.5) !important;
+}
+
+.grid-cell.team-cell {
+  cursor: pointer;
+}
+
+.grid-cell.team-cell.disabled {
+  cursor: default;
+}
+
+
 .availability-header p {
   margin: 0;
   font-size: 0.8rem;
@@ -143,6 +189,8 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(26, 26, 26, 0.2);
   border-radius: 4px;
+  position: relative;
+  z-index: 10;
 }
 
 .skill-range-section h3 {
