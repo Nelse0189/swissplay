@@ -85,8 +85,17 @@ const commands = [
         .setRequired(true))
     .addStringOption(option =>
       option.setName('role')
-        .setDescription('The role(s) they play: Tank, DPS, Support (comma separated if multiple)')
-        .setRequired(true)),
+        .setDescription('The role(s) they play')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Tank', value: 'Tank' },
+          { name: 'DPS', value: 'DPS' },
+          { name: 'Support', value: 'Support' },
+          { name: 'Flex (All Roles)', value: 'Tank, DPS, Support' },
+          { name: 'Tank / DPS', value: 'Tank, DPS' },
+          { name: 'Tank / Support', value: 'Tank, Support' },
+          { name: 'DPS / Support', value: 'DPS, Support' }
+        )),
   
   new SlashCommandBuilder()
     .setName('verify-sr')
@@ -535,18 +544,21 @@ client.on('interactionCreate', async (interaction) => {
           const requestId = parts[2];
           
           try {
+            // Defer immediately - Firestore ops can exceed Discord's 3s timeout
+            await interaction.deferUpdate();
+            
             const db = getFirestore();
             const requestRef = db.collection('scrimRequests').doc(requestId);
             const requestDoc = await requestRef.get();
             
             if (!requestDoc.exists) {
-              await interaction.reply({ content: '❌ This request no longer exists or was deleted.', ephemeral: true });
+              await interaction.editReply({ content: '❌ This request no longer exists or was deleted.', components: [] });
               return;
             }
             
             const requestData = requestDoc.data();
             if (requestData.status !== 'pending') {
-              await interaction.reply({ content: `ℹ️ This request has already been **${requestData.status}**.`, ephemeral: true });
+              await interaction.editReply({ content: `ℹ️ This request has already been **${requestData.status}**.`, components: [] });
               return;
             }
             
@@ -607,18 +619,24 @@ client.on('interactionCreate', async (interaction) => {
               }
             }
             
-            // Edit original message to remove buttons and show result
+            // Edit original message to remove buttons and show result (use editReply since we deferred)
             const embed = EmbedBuilder.from(interaction.message.embeds[0])
               .setColor(action === 'accepted' ? 0x00FF00 : 0xFF0000)
               .addFields({ name: 'Status', value: `✅ You **${action}** this request.` });
               
-            await interaction.update({ embeds: [embed], components: [] });
+            await interaction.editReply({ embeds: [embed], components: [] });
             
             // Optionally, we could notify the requesting team here if we wanted to
             
           } catch (error) {
             console.error('Error handling scrim request response:', error);
-            await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+            try {
+              if (interaction.deferred) {
+                await interaction.editReply({ content: `❌ An error occurred: ${error.message}`, components: [] });
+              } else {
+                await interaction.reply({ content: `❌ An error occurred: ${error.message}`, ephemeral: true });
+              }
+            } catch (e) {}
           }
         }
         return;

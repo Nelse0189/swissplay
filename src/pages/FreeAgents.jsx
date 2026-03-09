@@ -13,6 +13,7 @@ import { db, auth } from '../firebase/config';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import LftInviteModal from '../components/UI/LftInviteModal';
+import { useToast } from '../context/ToastContext';
 import { OW_RANK_DIVISIONS, OW_RANK_OPTIONS_FOR_DROPDOWN, getRankLabel, getRankValueForSr } from '../utils/overwatchRanks';
 import './FreeAgents.css';
 
@@ -31,6 +32,7 @@ const FreeAgents = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
+  const toast = useToast();
 
   // Form state for listing
   const [formData, setFormData] = useState({
@@ -223,9 +225,11 @@ const FreeAgents = () => {
         setMyListing(null);
         setFormData({ listingType: 'player', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
       }
-      loadFreeAgents();
+      await loadFreeAgents();
+      toast.success('Listing removed successfully');
     } catch (error) {
       console.error('Error removing listing (moderator):', error);
+      toast.error('Failed to remove listing. You may not have permission.');
     } finally {
       setSaving(false);
     }

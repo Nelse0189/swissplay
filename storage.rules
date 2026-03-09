@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isSizeValid() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB max
+    }
+
+    // Profile pictures
+    match /profile-pictures/{userId}/{fileName} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && request.auth.uid == userId && isImage() && isSizeValid();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Team photos
+    match /team-photos/{teamId}/{fileName} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && isImage() && isSizeValid();
+      allow delete: if isAuthenticated();
+    }
+    
+    // Default deny
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

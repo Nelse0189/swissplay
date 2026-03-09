@@ -1,0 +1,92 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isModerator() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isAuthenticated() && userDoc != null && userDoc.data.isModerator == true;
+    }
+
+    // Users: anyone can read, only the user can write to their own profile
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if isOwner(userId);
+    }
+
+    // Free Agents: anyone can read, only the user can write their own listing (moderators can delete any listing)
+    match /freeAgents/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isModerator();
+    }
+
+    // Teams: anyone can read, authenticated users can create/update
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Scrim Requests
+    match /scrimRequests/{requestId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Scrim Logs
+    match /scrimLogs/{logId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+    
+    // Dropped Scrims
+    match /droppedScrims/{scrimId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Notifications: users can read their own, anyone can create (to send to others)
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Team Reviews
+    match /teamReviews/{reviewId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Revaluation Requests
+    match /revaluationRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Discord Verifications
+    match /discordVerifications/{verificationId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Contact Messages: write only
+    match /contactMessages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+    
+    // Default deny for anything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

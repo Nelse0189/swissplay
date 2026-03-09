@@ -191,6 +191,9 @@ export async function handleAvailabilityRequest(message, args) {
  * Handle button response from players
  */
 export async function handleButtonAvailabilityResponse(interaction, requestId, responseType) {
+  // Defer immediately - Firestore ops can exceed Discord's 3s timeout (especially on Cloud Run)
+  await interaction.deferReply({ ephemeral: true });
+
   const db = getFirestore();
   const playerDiscordId = interaction.user.id;
   
@@ -199,7 +202,7 @@ export async function handleButtonAvailabilityResponse(interaction, requestId, r
   const requestDoc = await requestRef.get();
   
   if (!requestDoc.exists) {
-    await interaction.reply({ content: '❌ Request not found.', ephemeral: true });
+    await interaction.editReply({ content: '❌ Request not found.' });
     return;
   }
 
@@ -210,7 +213,7 @@ export async function handleButtonAvailabilityResponse(interaction, requestId, r
   const player = await getPlayerByDiscordId(playerDiscordId, teamId);
   
   if (!player) {
-    await interaction.reply({ content: '❌ You are not linked to this team.', ephemeral: true });
+    await interaction.editReply({ content: '❌ You are not linked to this team.' });
     return;
   }
   
@@ -244,10 +247,9 @@ export async function handleButtonAvailabilityResponse(interaction, requestId, r
 
   await requestRef.update({ responses });
 
-  // Confirm to player
-  await interaction.reply({ 
-    content: `✅ Response recorded: ${responseText}\n\nIf you selected "Maybe", you can send a follow-up message with your time constraints.`,
-    ephemeral: true 
+  // Confirm to player (use editReply since we deferred)
+  await interaction.editReply({ 
+    content: `✅ Response recorded: ${responseText}\n\nIf you selected "Maybe", you can send a follow-up message with your time constraints.`
   });
 
   // Notify manager

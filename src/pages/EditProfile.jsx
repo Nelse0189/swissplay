@@ -166,6 +166,7 @@ const EditProfile = () => {
           ...updateData,
           email: user.email,
           uid: user.uid,
+          isModerator: false,
           createdAt: new Date()
         });
       }
