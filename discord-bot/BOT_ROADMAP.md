@@ -341,7 +341,7 @@ Average Availability: 4.2 players/day
 
 ## Current Status
 
-✅ `/link` - Self-serve team joining
+✅ Website verification - Manager Discord linking
 ✅ `/list-players` - View team roster
 ✅ `/request-availability` - Availability requests (existing)
 ✅ CPU throttling disabled

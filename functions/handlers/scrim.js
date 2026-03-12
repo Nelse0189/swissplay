@@ -60,7 +60,7 @@ async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
     await discordApi.sendDM(managerUser.id, {
       embeds: [discordApi.embedToApi(new EmbedBuilder()
         .setTitle('⚠️ No Team Members')
-        .setDescription('No team members have Discord linked. Link them first with /add-player or /link.')
+        .setDescription('No team members have Discord linked. Link them first with /add-player.')
         .setColor(0xffaa00))]
     });
     return;
@@ -239,7 +239,11 @@ export async function handleFindTimeSlash(interaction) {
       let count = 0;
       for (const m of team.members || []) {
         if (!Array.isArray(m.availability)) continue;
-        if (m.availability.some(s => s.day === day && hour >= (s.startHour || 0) && hour < (s.endHour || 24))) count++;
+        const slotKey = `${day}-${hour}`;
+        const hasSlot = m.availability.some(s =>
+          typeof s === 'string' ? s === slotKey : (s.day === day && hour >= (s.startHour || 0) && hour < (s.endHour || 24))
+        );
+        if (hasSlot) count++;
       }
       if (count > 0) slots.push({ day, hour, count });
     }
@@ -327,7 +331,7 @@ export async function handleUploadScrimSlash(interaction) {
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .find(t => t.members?.some(m => m.discordId === interaction.user.id));
   if (!userTeam) {
-    await interaction.followUp({ content: '❌ You must have your Discord linked to a team. Use `/link` first.' });
+    await interaction.followUp({ content: '❌ You must have your Discord linked to a team. Ask your manager to add you via /add-player, or verify via the website (Team Management → Settings).' });
     return;
   }
   const member = userTeam.members.find(m => m.discordId === interaction.user.id);

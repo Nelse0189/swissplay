@@ -1,24 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './AvailabilityTab.css';
 
-const AvailabilityTab = ({ currentUser, team }) => {
+const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSchedule, canEditSettings }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const hours = Array.from({ length: 25 }, (_, i) => i);
   
   const currentMember = team.members.find(m => m.uid === currentUser.uid);
   const isManager = currentMember?.roles?.includes('Manager') || currentMember?.roles?.includes('Owner');
-  
-  const [selectedTeamSlots, setSelectedTeamSlots] = useState([]);
+  const hideCompWarning = team.hideCompWarning === true;
+
+  const [selectedTeamSlots, setSelectedTeamSlots] = useState(() => {
+    return (team.schedule || []).map(s => `${s.day}-${s.hour}`);
+  });
+
+  useEffect(() => {
+    if (team.schedule) {
+      setSelectedTeamSlots(team.schedule.map(s => `${s.day}-${s.hour}`));
+    }
+  }, [team.schedule]);
 
   const [hoveredWarningSlot, setHoveredWarningSlot] = useState(null);
+
+  const handleToggleHideCompWarning = () => {
+    if (updateTeamSettings && canEditSettings) {
+      updateTeamSettings({ hideCompWarning: !hideCompWarning });
+    }
+  };
 
   const toggleTeamSlot = (day, hour) => {
     if (!isManager) return;
     const slot = `${day}-${hour}`;
+    let newSlots;
     if (selectedTeamSlots.includes(slot)) {
-      setSelectedTeamSlots(selectedTeamSlots.filter(s => s !== slot));
+      newSlots = selectedTeamSlots.filter(s => s !== slot);
     } else {
-      setSelectedTeamSlots([...selectedTeamSlots, slot]);
+      newSlots = [...selectedTeamSlots, slot];
+    }
+    setSelectedTeamSlots(newSlots);
+
+    if (updateTeamSchedule) {
+      const newSchedule = newSlots.map(s => {
+        const [d, h] = s.split('-');
+        return { day: d, hour: parseInt(h, 10) };
+      });
+      updateTeamSchedule(newSchedule);
     }
   };
 
@@ -83,7 +108,18 @@ const AvailabilityTab = ({ currentUser, team }) => {
       </div>
 
       <div className="team-availability-info" style={{ marginBottom: '1rem', fontFamily: "'Share Tech Mono', monospace", color: '#666', fontSize: '0.8rem' }}>
-        <p>SELECT NODES TO PROPOSE SCRIM TIMES. WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).</p>
+        <p>SELECT NODES TO PROPOSE SCRIM TIMES. {!hideCompWarning && 'WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).'}</p>
+        {isManager && canEditSettings && updateTeamSettings && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={hideCompWarning}
+              onChange={handleToggleHideCompWarning}
+              style={{ cursor: 'pointer' }}
+            />
+            <span>Hide comp warning (team does not track individual player availability)</span>
+          </label>
+        )}
       </div>
 
       <div className="digital-grid-container" onMouseLeave={() => setHoveredWarningSlot(null)}>
@@ -105,7 +141,7 @@ const AvailabilityTab = ({ currentUser, team }) => {
                 const availableMembers = team.members.filter(m => m.availability && m.availability.includes(slot));
                 const isSelected = selectedTeamSlots.includes(slot);
                 const compStatus = getCompStatus(availableMembers);
-                const showWarning = isSelected && !compStatus.hasComp;
+                const showWarning = !hideCompWarning && isSelected && !compStatus.hasComp;
                 
                 const opacity = availableMembers.length > 0 ? 0.1 + (availableMembers.length / team.members.length) * 0.7 : 0.05;
                 const cellStyle = showWarning || isSelected ? {} : { background: availableMembers.length > 0 ? `rgba(26, 26, 26, ${opacity})` : '' };

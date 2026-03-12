@@ -1,62 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { auth, db } from '../firebase/config';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import LoadingState from '../components/UI/LoadingState';
+import DiscordLinkingSection from '../components/DiscordLinkingSection';
 import './Profile.css';
 
 const Profile = () => {
-  const [user, setUser] = useState(null);
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, userData, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const loadUserData = async (currentUser) => {
-    if (!currentUser) return;
-    
-    try {
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setUserData({
-          ...data,
-          // Ensure photoURL is prioritized from Firestore, then Auth
-          photoURL: data.photoURL || currentUser.photoURL || null
-        });
-      } else {
-        // Create default profile
-        setUserData({
-          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-          email: currentUser.email,
-          photoURL: currentUser.photoURL || null,
-          roles: [],
-          createdAt: new Date()
-        });
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        await loadUserData(currentUser);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Reload user data when navigating back to profile page
-  useEffect(() => {
-    if (user && location.pathname === '/profile') {
-      loadUserData(user);
+    if (!loading && user && userData?.username) {
+      navigate(`/profile/${userData.username}`, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.key]);
+  }, [loading, user, userData?.username, navigate]);
 
   if (loading) {
     return (
@@ -140,6 +97,11 @@ const Profile = () => {
                   {userData?.roles?.length > 0 ? userData.roles.join(', ') : 'None'}
                 </span>
               </div>
+            </div>
+
+            <div className="profile-section">
+              <h3>DISCORD</h3>
+              <DiscordLinkingSection user={user} showHeading={false} />
             </div>
           </div>
         </div>

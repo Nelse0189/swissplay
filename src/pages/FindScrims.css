@@ -693,3 +693,107 @@
     padding-top: 1.5rem;
   }
 }
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .find-scrims-page .dashboard-content {
+    padding: 2rem 1rem;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .filters-section {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .team-selector-container {
+    max-width: 100%;
+  }
+
+  .team-card {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .team-card-header-left {
+    flex-wrap: wrap;
+  }
+
+  .team-card-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .team-card-badges {
+    padding-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .slot-item {
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .requests-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .request-card {
+    min-height: auto;
+  }
+
+  .request-actions {
+    flex-wrap: wrap;
+  }
+
+  .auth-prompt-container {
+    margin: 2rem auto;
+    padding: 2rem 1rem;
+  }
+
+  .loading-state {
+    padding: 2rem;
+    font-size: 1.2rem;
+  }
+
+  .matching-teams-section h2,
+  .requests-section h2 {
+    font-size: 1.4rem;
+    padding-left: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .find-scrims-page .dashboard-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.4rem;
+  }
+
+  .team-card-header-left {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .request-actions {
+    flex-direction: column;
+  }
+
+  .accept-btn,
+  .reject-btn {
+    width: 100%;
+  }
+}

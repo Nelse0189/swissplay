@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import LoadingState from '../components/UI/LoadingState';
+import DiscordLinkingSection from '../components/DiscordLinkingSection';
 import './PublicPlayerProfile.css';
 
 const PublicPlayerProfile = () => {
@@ -27,16 +28,27 @@ const PublicPlayerProfile = () => {
 
   const loadProfile = async () => {
     try {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setProfileData(data);
-        
-        // Load teams the user is/was part of
+      let profileUid = null;
+      let data = null;
+
+      // Look up by username only (case-insensitive: stored lowercase)
+      const usernameQuery = query(
+        collection(db, 'users'),
+        where('username', '==', userId?.toLowerCase() || '')
+      );
+      const usernameSnap = await getDocs(usernameQuery);
+      if (!usernameSnap.empty) {
+        const userDoc = usernameSnap.docs[0];
+        data = userDoc.data();
+        profileUid = userDoc.id;
+      }
+
+      if (data && profileUid) {
+        setProfileData({ ...data, uid: profileUid });
         const teamsSnapshot = await getDocs(collection(db, 'teams'));
         const userTeams = teamsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(team => team.members?.some(m => m.uid === userId));
+          .filter(team => team.members?.some(m => m.uid === profileUid));
         setTeams(userTeams);
       } else {
         setProfileData(null);
@@ -78,7 +90,8 @@ const PublicPlayerProfile = () => {
     );
   }
 
-  const isOwnProfile = currentUser?.uid === userId;
+  const profileUid = profileData?.uid;
+  const isOwnProfile = currentUser?.uid === profileUid;
 
   return (
     <div className="public-profile-page">
@@ -161,10 +174,14 @@ const PublicPlayerProfile = () => {
               )}
             </div>
 
-            {profileData.discordId && (
+            {currentUser && (isOwnProfile || profileData.discordId) && (
               <div className="profile-section">
                 <h3>DISCORD</h3>
-                <p className="discord-info">Linked: {profileData.discordUsername || 'Connected'}</p>
+                {isOwnProfile ? (
+                  <DiscordLinkingSection user={currentUser} showHeading={false} />
+                ) : (
+                  <p className="discord-info">Linked: {profileData.discordUsername || 'Connected'}</p>
+                )}
               </div>
             )}
           </div>

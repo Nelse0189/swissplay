@@ -1,39 +1,25 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../firebase/config';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+import { collection, getDocs } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 import NavigationDropdown from './UI/NavigationDropdown';
 import InboxDropdown from './UI/InboxDropdown';
 import './Header.css';
 
 const Header = () => {
-  const [user, setUser] = useState(null);
-  const [userData, setUserData] = useState(null);
+  const { user, userData } = useAuth();
   const [userTeams, setUserTeams] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        loadUserTeams(currentUser.uid);
-        // Load user profile data for profile picture
-        try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data());
-          }
-        } catch (error) {
-          console.error('Error loading user data:', error);
-        }
-      } else {
-        setUserTeams([]);
-        setUserData(null);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    if (user) {
+      loadUserTeams(user.uid);
+    } else {
+      setUserTeams([]);
+    }
+  }, [user?.uid]);
 
   const loadUserTeams = async (uid) => {
     try {
@@ -75,7 +61,7 @@ const Header = () => {
       items: userTeams.map(team => ({
         label: team.name,
         photoURL: team.photoURL,
-        onClick: () => navigate('/teams/overwatch')
+        onClick: () => navigate(`/teams/overwatch?team=${team.id}`)
       }))
     }] : [])
   ];
@@ -86,7 +72,7 @@ const Header = () => {
       items: [
         {
           label: 'Profile',
-          onClick: () => navigate('/profile')
+          onClick: () => navigate(userData?.username ? `/profile/${userData.username}` : '/profile')
         },
         {
           label: 'Edit Profile',
@@ -174,6 +160,13 @@ const Header = () => {
             </svg>
             LFT
           </Link>
+          <Link to="/ringers" className="nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            LFR
+          </Link>
           {user && (
             <NavigationDropdown 
               label={
@@ -216,7 +209,7 @@ const Header = () => {
         {user && (
           <div className="header-user-section">
             <InboxDropdown user={user} />
-            <Link to={`/profile/${user.uid}`} className="user-profile-link">
+            <Link to={userData?.username ? `/profile/${userData.username}` : '/profile'} className="user-profile-link">
               <div>
                 <img 
                   src={userData?.photoURL || user.photoURL || '/default-avatar.png'} 

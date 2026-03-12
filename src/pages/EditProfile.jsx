@@ -1,22 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, storage } from '../firebase/config';
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 import Modal from '../components/UI/Modal';
 import ImageCropper from '../components/UI/ImageCropper';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import LoadingState from '../components/UI/LoadingState';
+import DiscordLinkingSection from '../components/DiscordLinkingSection';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import { OW_RANK_OPTIONS_FOR_DROPDOWN, getRankValueForSr, getSrForRankValue } from '../utils/overwatchRanks';
 import { createNotification } from '../utils/notifications';
 import './EditProfile.css';
 
+function toUsername(displayName, uid = '') {
+  const sanitized = (displayName || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 30);
+  if (sanitized.length >= 3) return sanitized;
+  const pad = (uid || '').replace(/[^a-z0-9]/g, '').toLowerCase().slice(-3);
+  return (sanitized + pad).slice(0, 30) || 'player';
+}
+
 const EditProfile = () => {
-  const [user, setUser] = useState(null);
+  const { user, userData, refreshUserProfile } = useAuth();
   const [formData, setFormData] = useState({
     displayName: '',
+    username: '',
     skillRating: '',
     bio: '',
     photoURL: ''
@@ -30,40 +43,85 @@ const EditProfile = () => {
   const [originalFile, setOriginalFile] = useState(null);
   const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const fileInputRef = useRef(null);
+  const initialFormDataRef = useRef(null);
+  const allowNavigationRef = useRef(false);
   const navigate = useNavigate();
 
+  // Note: useBlocker requires createBrowserRouter (data router), not BrowserRouter.
+  // Unsaved-changes in-app blocking is disabled to avoid crashes.
+
+  const isDirty = initialFormDataRef.current && (
+    formData.displayName !== initialFormDataRef.current.displayName ||
+    formData.username !== initialFormDataRef.current.username ||
+    formData.skillRating !== initialFormDataRef.current.skillRating ||
+    formData.bio !== initialFormDataRef.current.bio ||
+    (formData.photoURL || '') !== (initialFormDataRef.current.photoURL || '')
+  );
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            setFormData({
-              displayName: data.displayName || currentUser.displayName || '',
-              skillRating: getRankValueForSr(data.skillRating),
-              bio: data.bio || '',
-              photoURL: data.photoURL || currentUser.photoURL || ''
-            });
-            setPhotoPreview(data.photoURL || currentUser.photoURL || null);
-          } else {
-            setFormData({
-              displayName: currentUser.displayName || currentUser.email?.split('@')[0] || '',
-              skillRating: '',
-              bio: '',
-              photoURL: currentUser.photoURL || ''
-            });
-            setPhotoPreview(currentUser.photoURL || null);
-          }
-        } catch (error) {
-          console.error('Error loading profile:', error);
-        }
-      }
+    if (!isDirty) return;
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!user) {
       setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+      return;
+    }
+    const loadFormData = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const displayName = data.displayName || user.displayName || '';
+          const username = data.username || toUsername(displayName, user.uid);
+          const newFormData = {
+            displayName,
+            username,
+            skillRating: getRankValueForSr(data.skillRating),
+            bio: data.bio || '',
+            photoURL: data.photoURL || user.photoURL || ''
+          };
+          setFormData(newFormData);
+          initialFormDataRef.current = { ...newFormData };
+          setPhotoPreview(data.photoURL || user.photoURL || null);
+        } else {
+          const displayName = user.displayName || user.email?.split('@')[0] || '';
+          const username = toUsername(displayName, user.uid);
+          const newFormData = {
+            displayName,
+            username,
+            skillRating: '',
+            bio: '',
+            photoURL: user.photoURL || ''
+          };
+          setFormData(newFormData);
+          initialFormDataRef.current = { ...newFormData };
+          setPhotoPreview(user.photoURL || null);
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFormData();
+  }, [user]);
+
+  // Auto-sync username when display name changes (if username is empty)
+  useEffect(() => {
+    if (!user || loading) return;
+    if (!formData.username && formData.displayName) {
+      const derived = toUsername(formData.displayName, user.uid);
+      if (derived && derived !== formData.username) {
+        setFormData(prev => ({ ...prev, username: derived }));
+      }
+    }
+  }, [formData.displayName, formData.username, user, loading]);
 
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -126,9 +184,28 @@ const EditProfile = () => {
     }
   };
 
+  const isValidUsername = (v) => /^[a-z0-9_]{3,30}$/.test(v);
+
   const handleSave = async (e) => {
     e.preventDefault();
     if (!user) return;
+
+    const trimmedUsername = (formData.username?.trim().toLowerCase() || toUsername(formData.displayName, user.uid)) || '';
+    if (!trimmedUsername) {
+      setModal({ isOpen: true, title: 'Username Required', message: 'A unique username is required for your profile URL (e.g. swissplay.gg/profile/johndoe).', type: 'error' });
+      return;
+    }
+    if (!isValidUsername(trimmedUsername)) {
+      setModal({ isOpen: true, title: 'Invalid Username', message: 'Username must be 3-30 characters, lowercase letters, numbers, and underscores only (e.g. johndoe).', type: 'error' });
+      return;
+    }
+    const existingQuery = query(collection(db, 'users'), where('username', '==', trimmedUsername));
+    const existingSnap = await getDocs(existingQuery);
+    const takenByOther = existingSnap.docs.some(d => d.id !== user.uid);
+    if (takenByOther) {
+      setModal({ isOpen: true, title: 'Username Taken', message: 'That username is already in use. Please choose another.', type: 'error' });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -153,6 +230,7 @@ const EditProfile = () => {
 
       const updateData = {
         displayName: formData.displayName,
+        username: trimmedUsername || null,
         photoURL: formData.photoURL || null,
         skillRating: newSr,
         bio: formData.bio,
@@ -191,10 +269,11 @@ const EditProfile = () => {
         });
       }
 
+      await refreshUserProfile();
+      const newProfilePath = trimmedUsername ? `/profile/${trimmedUsername}` : '/profile';
       setModal({ isOpen: true, title: 'Success', message: 'Profile updated successfully!', type: 'success' });
-      setTimeout(() => {
-        navigate('/profile');
-      }, 1500);
+      // Use window.location to force URL update (navigate() can be unreliable with form submits)
+      window.location.replace(newProfilePath);
     } catch (error) {
       console.error('Error updating profile:', error);
       setModal({ isOpen: true, title: 'Error', message: 'Failed to update profile. Please try again.', type: 'error' });
@@ -210,6 +289,7 @@ const EditProfile = () => {
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '', type: 'info' });
   };
+
 
   if (loading) {
     return (
@@ -320,6 +400,22 @@ const EditProfile = () => {
               </div>
 
               <div className="form-group">
+                <label>PROFILE URL</label>
+                <div className="username-input-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="url-prefix" style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>swissplay.gg/profile/</span>
+                  <input
+                    type="text"
+                    value={formData.username || toUsername(formData.displayName, user?.uid)}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                    className="custom-input"
+                    placeholder={toUsername(formData.displayName, user?.uid)}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                </div>
+                <p className="form-hint">Auto-generated from your display name. You can customize it if needed.</p>
+              </div>
+
+              <div className="form-group">
                 <label>EMAIL</label>
                 <input
                   type="email"
@@ -362,8 +458,6 @@ const EditProfile = () => {
             </div>
 
             <div className="form-section">
-              <h3>DISCORD ACCOUNT</h3>
-              <p className="section-desc">Link your Discord account to enable team features and bot commands.</p>
               <DiscordLinkingSection user={user} />
             </div>
 
@@ -394,98 +488,6 @@ const EditProfile = () => {
           )}
         </div>
       </div>
-    </div>
-  );
-};
-
-// Discord Linking Component (simplified version for EditProfile)
-const DiscordLinkingSection = ({ user }) => {
-  const toast = useToast();
-  const [discordUsername, setDiscordUsername] = useState('');
-  const [isLinking, setIsLinking] = useState(false);
-  const [linkedDiscordId, setLinkedDiscordId] = useState(null);
-
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          if (data.discordId) {
-            setLinkedDiscordId(data.discordId);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      }
-    };
-    if (user) {
-      loadUserData();
-    }
-  }, [user]);
-
-  const handleLinkDiscord = async () => {
-    if (!discordUsername.trim()) {
-      toast.error('Please enter your Discord username');
-      return;
-    }
-    
-    setIsLinking(true);
-    try {
-      // Create verification document
-      const code = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      const cleanUsername = discordUsername.split('#')[0].trim();
-      
-      await setDoc(doc(db, 'discordVerifications', code), {
-        discordUsername: cleanUsername,
-        userUid: user.uid,
-        userEmail: user.email,
-        userName: user.displayName || user.email?.split('@')[0],
-        status: 'pending',
-        createdAt: new Date(),
-        dmSent: false
-      });
-      
-      toast.success(`Verification code created. Check your Discord DMs or run /verify-discord code:${code} in Discord.`);
-      setDiscordUsername('');
-    } catch (error) {
-      console.error('Error creating verification:', error);
-      toast.error('Failed to create verification. Please try again.');
-    } finally {
-      setIsLinking(false);
-    }
-  };
-
-  if (linkedDiscordId) {
-    return (
-      <div className="discord-linked">
-        <p style={{ color: '#4caf50', margin: 0 }}>✅ Discord account linked</p>
-        <p className="form-hint">Your Discord account is connected to your profile.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="discord-linking">
-      <div className="form-group">
-        <input
-          type="text"
-          value={discordUsername}
-          onChange={(e) => setDiscordUsername(e.target.value)}
-          placeholder="Enter your Discord username"
-          className="custom-input"
-          disabled={isLinking}
-        />
-        <p className="form-hint">Enter your Discord username (without #). You'll receive a verification DM.</p>
-      </div>
-      <button
-        type="button"
-        className="save-btn"
-        onClick={handleLinkDiscord}
-        disabled={isLinking || !discordUsername.trim()}
-      >
-        {isLinking ? 'LINKING...' : 'LINK DISCORD ACCOUNT'}
-      </button>
     </div>
   );
 };

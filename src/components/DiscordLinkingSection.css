@@ -1,0 +1,64 @@
+.discord-linked-section {
+  padding: 1rem;
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  border-radius: 4px;
+}
+
+.discord-linked-status {
+  color: #4caf50;
+  margin: 0;
+  font-weight: 500;
+}
+
+.discord-linked-hint {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0 0;
+}
+
+.discord-linking-section {
+  margin-top: 1rem;
+}
+
+.discord-linking-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.discord-linking-title {
+  margin: 0;
+  font-family: 'Share Tech Mono', monospace;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.discord-help-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(114, 137, 218, 0.5);
+  background: rgba(114, 137, 218, 0.15);
+  color: #7289da;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.discord-help-btn:hover {
+  background: rgba(114, 137, 218, 0.25);
+}
+
+.discord-linking-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}

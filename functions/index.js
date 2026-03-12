@@ -350,10 +350,9 @@ async function handleHelpSlash(interaction) {
     .setDescription('Commands available to all players:')
     .setColor(0x7289da)
     .addFields(
-      { name: '`/my-availability`', value: 'Set your availability via DM.' },
+      { name: '`/my-availability`', value: 'Set your availability via dropdown (or custom text).' },
       { name: '`/my-team`', value: 'View your team roster and schedule.' },
       { name: '`/upcoming-scrims`', value: 'See all scheduled scrims.' },
-      { name: '`/link`', value: 'Link your Discord account or join a team.' },
       { name: '`/help`', value: 'Show this help message' }
     )
     .setFooter({ text: 'All availability and team info is sent privately via DM.' });
@@ -386,10 +385,30 @@ async function handleHelpSlash(interaction) {
 // --- Router ---
 async function routeInteraction(interaction) {
   const { type, data } = interaction;
+
+  // Modal submit (type 5) - e.g. availability form
+  if (type === 5) {
+    const customId = data?.custom_id;
+    if (customId === 'availability_modal') {
+      const { handleAvailabilityModalSubmit } = await import('./handlers/availability.js');
+      await handleAvailabilityModalSubmit(interaction);
+      return;
+    }
+  }
   
   if (type === 3) {
     const customId = data?.custom_id || interaction.customId;
     const values = data?.values || interaction.values || [];
+    if (customId === 'availability_select') {
+      const { handleAvailabilitySelect } = await import('./handlers/availability.js');
+      await handleAvailabilitySelect(interaction, values[0]);
+      return;
+    }
+    if (customId?.startsWith('flex_avail_')) {
+      const { handleFlexibleAvailability } = await import('./handlers/availability.js');
+      await handleFlexibleAvailability(interaction);
+      return;
+    }
     if (customId?.startsWith('add_player_team_')) {
       await handleAddPlayerTeamSelect(interaction, customId.replace('add_player_team_', ''));
       return;
@@ -410,11 +429,6 @@ async function routeInteraction(interaction) {
     if (customId?.startsWith('verify_deny_')) {
       const { handleVerificationDeny } = await import('./handlers/verify.js');
       await handleVerificationDeny(interaction, customId.replace('verify_deny_', ''));
-      return;
-    }
-    if (customId?.startsWith('join_team_')) {
-      const { handleJoinTeamSelect } = await import('./handlers/link.js');
-      await handleJoinTeamSelect(interaction, customId.replace('join_team_', ''), values[0]);
       return;
     }
     if (customId?.startsWith('schedule_scrim_team_')) {
@@ -447,10 +461,6 @@ async function routeInteraction(interaction) {
       case 'remove-player':
         const { handleRemovePlayerSlash } = await import('./handlers/players.js');
         await handleRemovePlayerSlash(interaction);
-        break;
-      case 'link':
-        const { handleLinkDiscordSlash } = await import('./handlers/link.js');
-        await handleLinkDiscordSlash(interaction);
         break;
       case 'list-players':
         const { handleListPlayersSlash } = await import('./handlers/players.js');
@@ -520,7 +530,7 @@ export const onVerificationCreated = onDocumentCreated(
       const manager = team.members?.find(m => m.uid === data.userUid);
       if (!manager?.discordId) {
         await db.collection('discordVerifications').doc(verificationCode).update({
-          dmError: 'Manager Discord account not linked. Please run /link in Discord first.',
+          dmError: 'Manager Discord account not linked. Please enter your Discord username in the form below to receive a verification DM.',
           dmSent: false
         });
         return;
@@ -532,6 +542,77 @@ export const onVerificationCreated = onDocumentCreated(
           dmSent: true,
           dmSentAt: new Date(),
           discordUserId: manager.discordId
+        });
+      } catch (error) {
+        console.error('Failed to send verification DM:', error);
+        await db.collection('discordVerifications').doc(verificationCode).update({
+          dmError: error.message,
+          dmSent: false
+        });
+      }
+      return;
+    }
+    
+    // Username-based verification: search guilds bot is in, find user, send DM
+    if (data.discordUsername) {
+      const db = admin.firestore();
+      const cleanUsername = String(data.discordUsername).split('#')[0].toLowerCase().trim();
+      const guildsSnap = await db.collection('discordBotGuilds').limit(100).get();
+      const guildIds = guildsSnap.docs.map((d) => d.id);
+      
+      if (guildIds.length === 0) {
+        await db.collection('discordVerifications').doc(verificationCode).update({
+          dmError: 'No Discord servers registered yet. Use any bot command (e.g. /help) in your server first, then try linking again. Or use manual verification: run /verify-discord code:' + verificationCode + ' in Discord.',
+          dmSent: false
+        });
+        return;
+      }
+      
+      let discordUserId = null;
+      for (const guildId of guildIds) {
+        try {
+          const members = await discordApi.searchGuildMembers(guildId, cleanUsername, 5);
+          if (Array.isArray(members) && members.length > 0) {
+            const match = members.find(
+              (m) =>
+                m.user?.username?.toLowerCase() === cleanUsername ||
+                m.user?.global_name?.toLowerCase() === cleanUsername ||
+                m.nick?.toLowerCase() === cleanUsername
+            ) || members[0];
+            if (match?.user?.id) {
+              discordUserId = match.user.id;
+              break;
+            }
+          }
+        } catch (err) {
+          // Guild might lack Server Members Intent or bot may have left
+          continue;
+        }
+      }
+      
+      if (!discordUserId) {
+        await db.collection('discordVerifications').doc(verificationCode).update({
+          dmError: `Could not find Discord user "${cleanUsername}". Make sure you're in a server with the bot and your username matches. Or run /verify-discord code:${verificationCode} in Discord.`,
+          dmSent: false
+        });
+        return;
+      }
+      
+      const { sendVerificationDMToUser } = await import('./handlers/verifyDm.js');
+      try {
+        await sendVerificationDMToUser(
+          discordUserId,
+          verificationCode,
+          data.userEmail,
+          data.userName || data.discordUsername,
+          data.teamName,
+          data.isInvite === true,
+          data.invitedByName || null
+        );
+        await db.collection('discordVerifications').doc(verificationCode).update({
+          dmSent: true,
+          dmSentAt: new Date(),
+          discordUserId
         });
       } catch (error) {
         console.error('Failed to send verification DM:', error);
@@ -605,7 +686,7 @@ async function sendScrimReminder(db, poll, timeframe, pollDoc) {
 
 // --- HTTP Handler ---
 export const discordInteractions = onRequest(
-  { region: 'us-central1' },
+  { region: 'us-central1', minInstances: 1 },
   async (req, res) => {
     ensureDiscordConfig();
     if (req.method !== 'POST') {
@@ -624,42 +705,79 @@ export const discordInteractions = onRequest(
       return;
     }
     
-    const isValid = verifyKey(rawBody, signature, timestamp, publicKey);
+    console.log('Received interaction:', {
+      method: req.method,
+      signature: !!signature,
+      timestamp: !!timestamp,
+      bodyType: typeof req.body,
+      rawBodyExists: !!req.rawBody
+    });
+
+    // Parse body FIRST so ping can be responded to before async signature check
+    let body;
+    try {
+      body = typeof req.body === 'object' ? req.body : JSON.parse(rawBody);
+    } catch (e) {
+      console.error('Failed to parse body:', e);
+      res.status(400).send('Invalid JSON');
+      return;
+    }
+
+    // verifyKey is async in discord-interactions v4
+    const isValid = await verifyKey(rawBody, signature, timestamp, publicKey);
     if (!isValid) {
+      console.error('Invalid request signature', { signature, timestamp, publicKeyLength: publicKey?.length });
       res.status(401).send('Invalid request signature');
       return;
     }
     
-    const body = typeof req.body === 'object' ? req.body : JSON.parse(rawBody);
-    
+    // Handle ping
     if (body.type === 1) {
+      console.log('Received ping from Discord');
       res.status(200).json({ type: 1 });
       return;
     }
     
-    const interaction = createInteractionAdapter(body);
+    // Register guild ID for later DM-by-username lookups (fire-and-forget)
+    if (body.guild_id) {
+      admin.firestore().doc(`discordBotGuilds/${body.guild_id}`).set(
+        { lastSeen: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      ).catch((e) => console.warn('Failed to register guild:', e.message));
+    }
+    
+    // IMMEDIATELY defer the reply so Discord doesn't timeout
+    // Discord requires a response within 3 seconds
+    let responseSent = false;
+    const sendResponse = (payload) => {
+      if (!responseSent) {
+        responseSent = true;
+        console.log('Sending response to Discord:', JSON.stringify(payload));
+        res.status(200).json(payload);
+      } else {
+        console.log('Response already sent, ignoring payload:', JSON.stringify(payload));
+      }
+    };
+    
+    const interaction = createInteractionAdapter(body, sendResponse);
     
     try {
+      console.log('Routing interaction:', body.data?.name || body.data?.custom_id);
       await routeInteraction(interaction);
-      const response = interaction._response;
-      if (response) {
-        res.status(200).json(response);
-      } else {
-        res.status(200).json({ type: 4, data: { content: '✅ Done', flags: 64 } });
+      console.log('Interaction routing complete');
+      
+      if (!responseSent) {
+        const response = interaction._response;
+        if (response) {
+          sendResponse(response);
+        } else {
+          sendResponse({ type: 4, data: { content: '✅ Done', flags: 64 } });
+        }
       }
     } catch (error) {
       console.error('Interaction error:', error);
-      try {
-        if (interaction.deferred || interaction.replied) {
-          await interaction.followUp({ content: `❌ Error: ${error.message}`, ephemeral: true });
-        } else {
-          await interaction.reply({ content: `❌ Error: ${error.message}`, ephemeral: true });
-        }
-        const resp = interaction._response;
-        if (resp) res.status(200).json(resp);
-        else res.status(200).json({ type: 4, data: { content: `❌ Error: ${error.message}`, flags: 64 } });
-      } catch (e) {
-        res.status(200).json({ type: 4, data: { content: `❌ Error: ${error.message}`, flags: 64 } });
+      if (!responseSent) {
+        sendResponse({ type: 4, data: { content: `❌ Error: ${error.message}`, flags: 64 } });
       }
     }
   }

@@ -13,30 +13,27 @@ import { db, auth } from '../firebase/config';
 import { useAuth } from '../context/AuthContext';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
-import LftInviteModal from '../components/UI/LftInviteModal';
 import { useToast } from '../context/ToastContext';
 import { OW_RANK_DIVISIONS, OW_RANK_OPTIONS_FOR_DROPDOWN, getRankLabel, getRankValueForSr } from '../utils/overwatchRanks';
 import './FreeAgents.css';
 
 const ROLES = ['Tank', 'DPS', 'Support', 'Flex'];
 const REGIONS = ['NA', 'EU', 'OCE', 'Asia', 'SA'];
-const OW_RANKS = OW_RANK_DIVISIONS; // alias for filter logic
+const OW_RANKS = OW_RANK_DIVISIONS;
 
-const FreeAgents = () => {
+const Ringers = () => {
   const { userData } = useAuth();
   const [user, setUser] = useState(null);
   const [isModerator, setIsModerator] = useState(false);
-  const [activeTab, setActiveTab] = useState('browse'); // 'list' | 'browse'
-  const [freeAgents, setFreeAgents] = useState([]);
+  const [activeTab, setActiveTab] = useState('browse');
+  const [ringers, setRingers] = useState([]);
   const [myListing, setMyListing] = useState(null);
-  const [managerTeams, setManagerTeams] = useState([]);
-  const [inviteModal, setInviteModal] = useState({ isOpen: false, agent: null });
+  const [userTeams, setUserTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
 
-  // Form state for listing
   const [formData, setFormData] = useState({
     listingType: 'player',
     selectedTeamId: '',
@@ -50,7 +47,6 @@ const FreeAgents = () => {
     btag: '',
   });
 
-  // Filter state for browse
   const [filters, setFilters] = useState({
     listingType: '',
     role: '',
@@ -81,7 +77,7 @@ const FreeAgents = () => {
   }, []);
 
   useEffect(() => {
-    loadFreeAgents();
+    loadRingers();
   }, []);
 
   useEffect(() => {
@@ -90,7 +86,7 @@ const FreeAgents = () => {
       loadUserTeams();
     } else {
       setMyListing(null);
-      setManagerTeams([]);
+      setUserTeams([]);
     }
   }, [user, userData]);
 
@@ -112,46 +108,51 @@ const FreeAgents = () => {
       const teamsSnapshot = await getDocs(collection(db, 'teams'));
       const uid = user.uid;
       const userEmail = user.email?.toLowerCase?.();
-      const managedTeams = teamsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
+      const teamsData = teamsSnapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
         .filter(t => {
-          if (t.ownerId == uid) return true;  // loose eq for Firestore type mismatch
+          // Owner always manages (loose equality for uid/ownerId type mismatch)
+          if (t.ownerId == uid) return true;
+          // Manager added via Discord: their Discord ID is in managerDiscordIds
           if (userDiscordId && t.managerDiscordIds?.some(id => String(id) === String(userDiscordId))) return true;
+          // memberUids: user might be in memberUids (e.g. from sync) - find matching member
           if (t.memberUids?.includes(uid)) {
-            const m = t.members?.find(mem => mem.uid === uid);
+            const m = t.members?.find(mem => mem.uid == uid);
             if (m && (m.roles?.includes('Manager') || m.roles?.includes('Owner'))) return true;
           }
+          // Find if user is a member (by uid, discordId, or email)
           const member = t.members?.find(m => {
-            if (m.uid === uid) return true;
+            if (m.uid == uid) return true;
             if (userDiscordId && String(m.discordId) === String(userDiscordId)) return true;
             if (userEmail && m.email?.toLowerCase?.() === userEmail) return true;
             return false;
           });
           if (!member) return false;
-          return member.roles?.includes('Manager') || member.roles?.includes('Owner');
+          // Only include teams where user is Manager or Owner (case-insensitive for robustness)
+          const roles = member.roles || [];
+          return roles.some(r => r?.toLowerCase?.() === 'manager' || r?.toLowerCase?.() === 'owner');
         });
-      setManagerTeams(managedTeams);
+      setUserTeams(teamsData);
     } catch (error) {
       console.error('Error loading user teams:', error);
     }
   };
 
-  const loadFreeAgents = async () => {
+  const loadRingers = async () => {
     setLoading(true);
     try {
-      const snapshot = await getDocs(collection(db, 'freeAgents'));
+      const snapshot = await getDocs(collection(db, 'ringers'));
       const agents = snapshot.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((a) => a.status !== 'signed')
         .sort((a, b) => {
           const aTime = a.updatedAt?.toMillis?.() || 0;
           const bTime = b.updatedAt?.toMillis?.() || 0;
           return bTime - aTime;
         });
-      setFreeAgents(agents);
+      setRingers(agents);
     } catch (error) {
-      console.error('Error loading free agents:', error);
-      setFreeAgents([]);
+      console.error('Error loading ringers:', error);
+      setRingers([]);
     } finally {
       setLoading(false);
     }
@@ -160,14 +161,18 @@ const FreeAgents = () => {
   const loadMyListing = async () => {
     if (!user) return;
     try {
-      const docRef = doc(db, 'freeAgents', user.uid);
+      const docRef = doc(db, 'ringers', user.uid);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data();
         setMyListing({ id: snap.id, ...data });
+        let selectedTeamId = '';
+        const teamName = data.teamName || '';
+        if (data.teamId) selectedTeamId = data.teamId;
         setFormData({
           listingType: data.listingType || 'player',
-          teamName: data.teamName || '',
+          selectedTeamId,
+          teamName,
           preferredRoles: data.preferredRoles || [],
           sr: getRankValueForSr(data.sr),
           region: data.region || '',
@@ -199,17 +204,38 @@ const FreeAgents = () => {
       navigate('/auth');
       return;
     }
+    if (formData.listingType === 'team') {
+      const teamName = formData.selectedTeamId && formData.selectedTeamId !== 'manual'
+        ? userTeams.find(t => t.id === formData.selectedTeamId)?.name
+        : formData.teamName;
+      if (!teamName?.trim()) {
+        toast.error('Please select your team or enter a team name.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userData = userDoc.exists() ? userDoc.data() : {};
+      let teamName = formData.teamName;
+      let teamId = null;
+      if (formData.listingType === 'team') {
+        if (formData.selectedTeamId) {
+          const team = userTeams.find(t => t.id === formData.selectedTeamId);
+          if (team) {
+            teamName = team.name;
+            teamId = team.id;
+          }
+        }
+      }
       const agentData = {
         uid: user.uid,
         displayName: userData.displayName || user.displayName || user.email?.split('@')[0] || 'Player',
         email: user.email || null,
         photoURL: userData.photoURL || user.photoURL || null,
         listingType: formData.listingType || 'player',
-        teamName: formData.listingType === 'team' ? formData.teamName : null,
+        teamName: formData.listingType === 'team' ? teamName : null,
+        teamId: formData.listingType === 'team' ? teamId : null,
         preferredRoles: formData.preferredRoles.length ? formData.preferredRoles : ['Flex'],
         sr: formData.sr ? parseInt(formData.sr, 10) : null,
         region: formData.region || null,
@@ -221,12 +247,14 @@ const FreeAgents = () => {
         createdAt: myListing?.createdAt || Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
-      await setDoc(doc(db, 'freeAgents', user.uid), agentData);
+      await setDoc(doc(db, 'ringers', user.uid), agentData);
       setMyListing({ id: user.uid, ...agentData });
       setActiveTab('browse');
-      loadFreeAgents();
+      loadRingers();
+      toast.success('Ringer listing saved successfully!');
     } catch (error) {
       console.error('Error saving listing:', error);
+      toast.error('Failed to save listing.');
     } finally {
       setSaving(false);
     }
@@ -236,12 +264,14 @@ const FreeAgents = () => {
     if (!user || !myListing) return;
     setSaving(true);
     try {
-      await deleteDoc(doc(db, 'freeAgents', user.uid));
+      await deleteDoc(doc(db, 'ringers', user.uid));
       setMyListing(null);
-      setFormData({ listingType: 'player', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
-      loadFreeAgents();
+      setFormData({ listingType: 'player', selectedTeamId: '', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
+      loadRingers();
+      toast.success('Listing removed successfully.');
     } catch (error) {
       console.error('Error removing listing:', error);
+      toast.error('Failed to remove listing.');
     } finally {
       setSaving(false);
     }
@@ -252,12 +282,12 @@ const FreeAgents = () => {
     if (!window.confirm('Are you sure you want to remove this listing as a moderator?')) return;
     setSaving(true);
     try {
-      await deleteDoc(doc(db, 'freeAgents', listingId));
+      await deleteDoc(doc(db, 'ringers', listingId));
       if (myListing && myListing.id === listingId) {
         setMyListing(null);
-        setFormData({ listingType: 'player', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
+        setFormData({ listingType: 'player', selectedTeamId: '', teamName: '', preferredRoles: [], sr: '', region: '', availability: '', bio: '', discordTag: '', btag: '' });
       }
-      await loadFreeAgents();
+      await loadRingers();
       toast.success('Listing removed successfully');
     } catch (error) {
       console.error('Error removing listing (moderator):', error);
@@ -267,7 +297,7 @@ const FreeAgents = () => {
     }
   };
 
-  const filteredAgents = freeAgents.filter((agent) => {
+  const filteredRingers = ringers.filter((agent) => {
     const agentType = agent.listingType || 'player';
     if (filters.listingType && agentType !== filters.listingType) return false;
     if (filters.role && !(agent.preferredRoles || []).some((r) => r === filters.role || r === 'Flex'))
@@ -288,9 +318,9 @@ const FreeAgents = () => {
           <div className="free-agents-header">
             <div className="header-row">
               <div>
-                <h1>LFT / LFP</h1>
+                <h1>LFR / Ringers</h1>
                 <p className="subtitle">
-                  Players looking for teams · Teams finding talent · Coaches offering services
+                  Players available to ring · Teams looking for a ringer
                 </p>
               </div>
             </div>
@@ -331,35 +361,28 @@ const FreeAgents = () => {
                         className={`role-chip ${formData.listingType === 'player' ? 'selected' : ''}`}
                         onClick={() => setFormData({ ...formData, listingType: 'player' })}
                       >
-                        Player (LFT)
+                        Player (Available to Ring)
                       </button>
                       <button
                         type="button"
                         className={`role-chip ${formData.listingType === 'team' ? 'selected' : ''}`}
                         onClick={() => setFormData({ ...formData, listingType: 'team' })}
                       >
-                        Team (LFP)
-                      </button>
-                      <button
-                        type="button"
-                        className={`role-chip ${formData.listingType === 'coach' ? 'selected' : ''}`}
-                        onClick={() => setFormData({ ...formData, listingType: 'coach' })}
-                      >
-                        Coach
+                        Team (Need a Ringer)
                       </button>
                     </div>
                   </div>
-                  
+
                   {formData.listingType === 'team' && (
                     <div className="form-group">
                       <label>TEAM</label>
-                      {managerTeams.length > 0 ? (
+                      {userTeams.length > 0 ? (
                         <>
                           <CustomDropdown
                             options={[
                               { value: '', label: 'Select your team' },
-                              ...managerTeams.map(t => ({ value: t.id, label: t.name })),
-                              ...(formData.selectedTeamId && formData.selectedTeamId !== 'manual' && !managerTeams.find(t => t.id === formData.selectedTeamId)
+                              ...userTeams.map(t => ({ value: t.id, label: t.name })),
+                              ...(formData.selectedTeamId && formData.selectedTeamId !== 'manual' && !userTeams.find(t => t.id === formData.selectedTeamId)
                                 ? [{ value: formData.selectedTeamId, label: formData.teamName || 'Unknown Team' }]
                                 : []),
                               { value: 'manual', label: 'Other (type name manually)' },
@@ -368,7 +391,7 @@ const FreeAgents = () => {
                             onChange={(v) => setFormData({
                               ...formData,
                               selectedTeamId: v,
-                              teamName: v && v !== 'manual' ? (managerTeams.find(t => t.id === v)?.name || formData.teamName) : formData.teamName,
+                              teamName: v && v !== 'manual' ? (userTeams.find(t => t.id === v)?.name || formData.teamName) : formData.teamName,
                             })}
                             placeholder="Select your team"
                           />
@@ -397,14 +420,9 @@ const FreeAgents = () => {
                           </p>
                         </>
                       )}
-                      {managerTeams.length > 0 && !formData.selectedTeamId && !formData.teamName && (
+                      {userTeams.length > 0 && !formData.selectedTeamId && !formData.teamName && (
                         <span className="form-hint" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem', display: 'block' }}>
                           Required
-                        </span>
-                      )}
-                      {managerTeams.length === 0 && (
-                        <span className="form-hint" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem', display: 'block' }}>
-                          If you manage teams via Discord, link your account in Profile &gt; Edit Profile to see them here.
                         </span>
                       )}
                     </div>
@@ -412,9 +430,7 @@ const FreeAgents = () => {
 
                   <div className="form-group">
                     <label>
-                      {formData.listingType === 'coach' ? 'ROLES I COACH' : 
-                       formData.listingType === 'team' ? 'ROLES NEEDED' : 
-                       'PREFERRED ROLES'}
+                      {formData.listingType === 'team' ? 'ROLES NEEDED' : 'ROLES I CAN PLAY'}
                     </label>
                     <div className="roles-row">
                       {ROLES.map((role) => (
@@ -453,10 +469,10 @@ const FreeAgents = () => {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>{formData.listingType === 'team' ? 'PRACTICE / SCRIM SCHEDULE' : 'AVAILABILITY'}</label>
+                    <label>{formData.listingType === 'team' ? 'WHEN DO YOU NEED A RINGER?' : 'AVAILABILITY'}</label>
                     <input
                       type="text"
-                      placeholder={formData.listingType === 'team' ? "e.g. Scrims Mon/Wed/Fri 8-10pm EST" : "e.g. Weekdays 6-10pm, Mon/Wed/Fri 7-9pm"}
+                      placeholder={formData.listingType === 'team' ? "e.g. Tonight 8-10pm EST" : "e.g. Weekdays 6-10pm, Mon/Wed/Fri 7-9pm"}
                       value={formData.availability}
                       onChange={(e) => setFormData({ ...formData, availability: e.target.value })}
                     />
@@ -482,13 +498,11 @@ const FreeAgents = () => {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>{formData.listingType === 'team' ? 'TEAM BIO / REQUIREMENTS' : 'BIO / PITCH'}</label>
+                    <label>{formData.listingType === 'team' ? 'ADDITIONAL INFO' : 'BIO / INFO'}</label>
                     <textarea
                       rows={4}
-                      placeholder={formData.listingType === 'coach'
-                        ? "Describe your coaching experience, services offered (VOD review, team sessions, etc.), and what you're looking for..."
-                        : formData.listingType === 'team'
-                        ? "Describe your team, goals, and what kind of players you are looking for..."
+                      placeholder={formData.listingType === 'team'
+                        ? "Any other details for the ringer..."
                         : "Tell teams about yourself, your experience, and what you're looking for..."}
                       value={formData.bio}
                       onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
@@ -496,7 +510,7 @@ const FreeAgents = () => {
                   </div>
                   <div className="form-actions">
                     <button type="submit" className="save-btn" disabled={saving}>
-                      {saving ? 'SAVING...' : myListing ? 'UPDATE LISTING' : formData.listingType === 'coach' ? 'LIST COACHING SERVICES' : formData.listingType === 'team' ? 'LIST TEAM (LFP)' : 'LIST AS PLAYER (LFT)'}
+                      {saving ? 'SAVING...' : myListing ? 'UPDATE LISTING' : formData.listingType === 'team' ? 'LIST TEAM (NEED RINGER)' : 'LIST AS PLAYER (AVAILABLE TO RING)'}
                     </button>
                     {myListing && (
                       <button
@@ -522,9 +536,8 @@ const FreeAgents = () => {
                   <CustomDropdown
                     options={[
                       { value: '', label: 'All' },
-                      { value: 'player', label: 'Players (LFT)' },
-                      { value: 'team', label: 'Teams (LFP)' },
-                      { value: 'coach', label: 'Coaches' },
+                      { value: 'player', label: 'Players (Available)' },
+                      { value: 'team', label: 'Teams (Need Ringer)' },
                     ]}
                     value={filters.listingType}
                     onChange={(v) => setFilters({ ...filters, listingType: v })}
@@ -589,20 +602,19 @@ const FreeAgents = () => {
 
               {loading ? (
                 <LoadingState message="Loading listings..." />
-              ) : filteredAgents.length === 0 ? (
+              ) : filteredRingers.length === 0 ? (
                 <div className="empty-state">
                   <h3>NO LISTINGS FOUND</h3>
                   <p>
-                    {freeAgents.length === 0
+                    {ringers.length === 0
                       ? 'Be the first to create a listing!'
                       : 'Try adjusting your filters.'}
                   </p>
                 </div>
               ) : (
                 <div className="agents-grid">
-                  {filteredAgents.map((agent) => (
+                  {filteredRingers.map((agent) => (
                     <div key={agent.id} className="agent-card">
-                      
                       <div className="agent-card-left">
                         <div className="agent-avatar-wrap">
                           <img
@@ -616,11 +628,8 @@ const FreeAgents = () => {
                         <div className="agent-primary-info">
                           <h3>
                             {agent.listingType === 'team' ? (agent.teamName || 'Unknown Team') : (agent.displayName || 'Unknown')}
-                            {(agent.listingType || 'player') === 'coach' && (
-                              <span className="listing-type-badge coach">Coach</span>
-                            )}
                             {agent.listingType === 'team' && (
-                              <span className="listing-type-badge team" style={{background: 'rgba(255, 193, 7, 0.25)', color: '#ffc107', border: '1px solid #ffc107'}}>Team (LFP)</span>
+                              <span className="listing-type-badge team" style={{background: 'rgba(255, 193, 7, 0.25)', color: '#ffc107', border: '1px solid #ffc107'}}>Team (Needs Ringer)</span>
                             )}
                           </h3>
                           {agent.listingType === 'team' && agent.displayName && (
@@ -644,7 +653,7 @@ const FreeAgents = () => {
                         <div className="agent-schedule-contact">
                           {agent.availability && (
                             <div className="availability-block">
-                              <span className="section-label">{agent.listingType === 'team' ? 'SCHEDULE' : 'AVAILABILITY'}</span>
+                              <span className="section-label">{agent.listingType === 'team' ? 'WHEN NEEDED' : 'AVAILABILITY'}</span>
                               <p className="agent-availability">{agent.availability}</p>
                             </div>
                           )}
@@ -669,11 +678,11 @@ const FreeAgents = () => {
                       </div>
 
                       <div className="agent-card-right">
-                        <span className="section-label">{agent.listingType === 'team' ? 'TEAM BIO / REQS' : 'BIO'}</span>
+                        <span className="section-label">{agent.listingType === 'team' ? 'ADDITIONAL INFO' : 'BIO'}</span>
                         {agent.bio ? (
                           <p className="agent-bio">{agent.bio}</p>
                         ) : (
-                          <p className="agent-bio empty">No bio provided.</p>
+                          <p className="agent-bio empty">No info provided.</p>
                         )}
                         {isModerator && (
                           <button
@@ -694,17 +703,7 @@ const FreeAgents = () => {
                             REMOVE (MOD)
                           </button>
                         )}
-                        {managerTeams.length > 0 && agent.listingType !== 'team' && agent.uid !== user?.uid && (
-                          <button
-                            onClick={() => setInviteModal({ isOpen: true, agent })}
-                            className="save-btn"
-                            style={{ marginTop: isModerator ? '0.5rem' : 'auto', alignSelf: 'flex-start' }}
-                          >
-                            INVITE TO TEAM
-                          </button>
-                        )}
                       </div>
-
                     </div>
                   ))}
                 </div>
@@ -713,16 +712,8 @@ const FreeAgents = () => {
           )}
         </div>
       </div>
-
-      <LftInviteModal 
-        isOpen={inviteModal.isOpen}
-        onClose={() => setInviteModal({ isOpen: false, agent: null })}
-        agent={inviteModal.agent}
-        managerTeams={managerTeams}
-        currentUser={user}
-      />
     </div>
   );
 };
 
-export default FreeAgents;
+export default Ringers;

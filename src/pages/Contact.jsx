@@ -5,9 +5,12 @@ import { collection, addDoc } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import './Contact.css';
 
+const DISCORD_INVITE = 'https://discord.gg/rFUX24TeXc';
+
 const Contact = () => {
   const toast = useToast();
   const [user, setUser] = useState(null);
+  const [contactMethod, setContactMethod] = useState('email'); // 'email' | 'discord'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -75,7 +78,7 @@ const Contact = () => {
             <div className="info-card">
               <h3>DISCORD</h3>
               <p>Join our Discord server for real-time support</p>
-              <a href="https://discord.gg/rFUX24TeXc" target="_blank" rel="noopener noreferrer" className="contact-link">Join Discord</a>
+              <a href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer" className="contact-link">Join Discord</a>
             </div>
             <div className="info-card">
               <h3>RESPONSE TIME</h3>
@@ -83,6 +86,24 @@ const Contact = () => {
             </div>
           </div>
 
+          <div className="contact-method-toggle">
+            <button
+              type="button"
+              className={`toggle-btn ${contactMethod === 'email' ? 'active' : ''}`}
+              onClick={() => setContactMethod('email')}
+            >
+              Email Form
+            </button>
+            <button
+              type="button"
+              className={`toggle-btn ${contactMethod === 'discord' ? 'active' : ''}`}
+              onClick={() => setContactMethod('discord')}
+            >
+              Discord Ticket
+            </button>
+          </div>
+
+          {contactMethod === 'email' ? (
           <form onSubmit={handleSubmit} className="contact-form">
             <div className="form-section">
               <h3>CONTACT FORM</h3>
@@ -162,6 +183,20 @@ const Contact = () => {
               </button>
             </div>
           </form>
+          ) : (
+          <div className="contact-form discord-ticket-card">
+            <h3>OPEN A TICKET IN DISCORD</h3>
+            <p className="discord-ticket-desc">Prefer to get support through Discord? Join our server and open a support ticket for faster, real-time assistance.</p>
+            <ol className="discord-ticket-steps">
+              <li>Join our Discord server (link below)</li>
+              <li>Find the support or ticket channel</li>
+              <li>Open a ticket or ping a staff member</li>
+            </ol>
+            <a href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer" className="save-btn discord-ticket-btn">
+              Open Discord & Create Ticket
+            </a>
+          </div>
+          )}
         </div>
       </div>
     </div>

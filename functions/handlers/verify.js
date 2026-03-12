@@ -40,6 +40,9 @@ export async function handleVerificationConfirm(interaction, verificationCode) {
     discordUserId: interaction.user.id,
     confirmedAt: new Date()
   });
+  const discordUserId = interaction.user.id;
+  const discordUsername = interaction.user.username;
+
   if (data.teamId && data.userUid) {
     const teamDoc = await db.collection('teams').doc(data.teamId).get();
     if (teamDoc.exists) {
@@ -47,11 +50,22 @@ export async function handleVerificationConfirm(interaction, verificationCode) {
       const members = team.members || [];
       const idx = members.findIndex(m => m.uid === data.userUid);
       if (idx >= 0) {
-        members[idx] = { ...members[idx], discordId: interaction.user.id, discordUsername: interaction.user.username };
+        members[idx] = { ...members[idx], discordId: discordUserId, discordUsername };
         await db.collection('teams').doc(data.teamId).update({ members });
       }
     }
   }
+
+  // Profile-level link (Edit Profile): save discordId to users collection (merge in case doc doesn't exist)
+  if (data.userUid) {
+    await db.collection('users').doc(data.userUid).set({
+      discordId: discordUserId,
+      discordUsername,
+      updatedAt: new Date()
+    }, { merge: true });
+  }
+
+  console.log('handleVerificationConfirm: about to followUp success');
   await interaction.followUp({ content: '✅ Verification confirmed! Your Discord is now linked.', ephemeral: true });
 }
 
@@ -109,5 +123,15 @@ export async function handleVerifyDiscordSlash(interaction) {
       }
     }
   }
+
+  // Profile-level link (Edit Profile): save discordId to users collection
+  if (data.userUid) {
+    await db.collection('users').doc(data.userUid).set({
+      discordId: interaction.user.id,
+      discordUsername: interaction.user.username,
+      updatedAt: new Date()
+    }, { merge: true });
+  }
+
   await interaction.followUp({ content: '✅ Discord verified and linked!', ephemeral: true });
 }

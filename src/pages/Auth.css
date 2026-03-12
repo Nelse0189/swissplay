@@ -159,4 +159,19 @@
   color: var(--color-accent);
 }
 
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  .content-wrapper {
+    padding: 1rem;
+  }
+
+  .auth-content {
+    padding: 2rem 1.5rem;
+  }
+
+  .auth-content h1 {
+    font-size: 1.5rem;
+  }
+}
+
 

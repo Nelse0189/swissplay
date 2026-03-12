@@ -21,7 +21,7 @@ Discord bot for managing team availability requests for scrims. Allows managers 
 5. Copy the bot token (you'll need this for `.env`)
 6. Under "Privileged Gateway Intents", enable:
    - MESSAGE CONTENT INTENT (required for reading messages)
-   - SERVER MEMBERS INTENT (optional, for member lists)
+   - SERVER MEMBERS INTENT (required for finding users when sending verification DMs)
 7. Go to "OAuth2" > "URL Generator"
 8. Select scopes: `bot` and `applications.commands`
 9. Select bot permissions: `Send Messages`, `Read Message History`, `Direct Messages`
@@ -269,7 +269,7 @@ members: [
     uid: string,
     name: string,
     roles: string[],
-    discordId?: string,  // Added by !link command
+    discordId?: string,  // Linked via website verification or /add-player
     availability: string[]
   }
 ]

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './Modal.css';
 
 const Modal = ({ isOpen, onClose, title, message, type = 'info', children }) => {
@@ -34,7 +35,7 @@ const Modal = ({ isOpen, onClose, title, message, type = 'info', children }) => 
     }
   };
 
-  return (
+  const modalContent = (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
       <div className={`modal-container modal-${type}`}>
         <div className="modal-header">
@@ -57,6 +58,9 @@ const Modal = ({ isOpen, onClose, title, message, type = 'info', children }) => 
       </div>
     </div>
   );
+
+  const modalRoot = document.getElementById('modal-root') || document.body;
+  return createPortal(modalContent, modalRoot);
 };
 
 export default Modal;

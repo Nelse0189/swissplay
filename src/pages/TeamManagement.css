@@ -207,7 +207,49 @@
   margin-top: 0.5rem;
 }
 
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .team-management-page {
+    padding: 1rem;
+    padding-bottom: 2rem;
+  }
 
+  .team-form,
+  .auth-prompt,
+  .teams-list {
+    padding: 1.25rem;
+  }
+
+  .member-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .remove-btn {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .availability-grid {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .schedule-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .team-management-page {
+    padding: 0.75rem;
+  }
+
+  .team-form,
+  .auth-prompt {
+    padding: 1rem;
+  }
+}
 
 
 

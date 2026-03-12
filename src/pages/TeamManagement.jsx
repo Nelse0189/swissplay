@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { collection, addDoc, getDocs, doc, updateDoc, query, where, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import { useToast } from '../context/ToastContext';
@@ -15,8 +16,10 @@ import '../components/TeamDashboard/TeamDashboard.css';
 
 const TeamManagement = () => {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentUser, setCurrentUser] = useState(null);
-  const [userTeam, setUserTeam] = useState(null);
+  const [userTeams, setUserTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('schedule');
   
@@ -47,23 +50,52 @@ const TeamManagement = () => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
       if (user) {
-        loadUserTeam(user.uid);
+        loadUserTeams(user.uid);
       } else {
+        setUserTeams([]);
+        setSelectedTeamId(null);
         setLoading(false);
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const loadUserTeam = async (uid) => {
+  useEffect(() => {
+    if (userTeams.length > 0 && searchParams.get('team')) {
+      const teamFromUrl = searchParams.get('team');
+      if (userTeams.some(t => t.id === teamFromUrl) && teamFromUrl !== selectedTeamId) {
+        setSelectedTeamId(teamFromUrl);
+      }
+    }
+  }, [searchParams]);
+
+  const userTeam = selectedTeamId ? userTeams.find(t => t.id === selectedTeamId) || null : (userTeams[0] || null);
+
+  const handleTeamChange = (teamId) => {
+    setSelectedTeamId(teamId || null);
+    if (teamId) {
+      setSearchParams({ team: teamId });
+    } else {
+      setSearchParams({});
+    }
+  };
+
+  const loadUserTeams = async (uid) => {
     try {
       const teamsRef = collection(db, 'teams');
       const snapshot = await getDocs(teamsRef);
-      const team = snapshot.docs
+      const teams = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .find(t => t.members.some(m => m.uid === uid));
+        .filter(t => t.members?.some(m => m.uid === uid));
 
-      setUserTeam(team || null);
+      setUserTeams(teams);
+      if (teams.length > 0) {
+        const teamFromUrl = searchParams.get('team');
+        const validFromUrl = teamFromUrl && teams.some(t => t.id === teamFromUrl);
+        setSelectedTeamId(validFromUrl ? teamFromUrl : teams[0].id);
+      } else {
+        setSelectedTeamId(null);
+      }
     } catch (error) {
       console.error("Error loading team:", error);
     } finally {
@@ -92,7 +124,9 @@ const TeamManagement = () => {
       };
 
       const docRef = await addDoc(collection(db, 'teams'), teamData);
-      setUserTeam({ id: docRef.id, ...teamData });
+      const newTeam = { id: docRef.id, ...teamData };
+      setUserTeams(prev => [...prev, newTeam]);
+      setSelectedTeamId(docRef.id);
     } catch (error) {
       console.error("Error creating team:", error);
       toast.error("Failed to create team");
@@ -110,14 +144,11 @@ const TeamManagement = () => {
         return m;
       });
 
-      const newSchedule = generateSchedule(updatedMembers);
-
       await updateDoc(doc(db, 'teams', userTeam.id), {
-        members: updatedMembers,
-        schedule: newSchedule
+        members: updatedMembers
       });
 
-      setUserTeam({ ...userTeam, members: updatedMembers, schedule: newSchedule });
+      setUserTeams(prev => prev.map(t => t.id === userTeam.id ? { ...t, members: updatedMembers } : t));
       
       // Notify managers
       userTeam.members.forEach(m => {
@@ -132,6 +163,16 @@ const TeamManagement = () => {
       });
     } catch (error) {
       console.error("Error updating availability:", error);
+    }
+  };
+
+  const updateTeamSchedule = async (newSchedule) => {
+    try {
+      await updateDoc(doc(db, 'teams', userTeam.id), { schedule: newSchedule });
+      setUserTeams(prev => prev.map(t => t.id === userTeam.id ? { ...t, schedule: newSchedule } : t));
+    } catch (error) {
+      console.error("Error updating team schedule:", error);
+      toast.error("Failed to save team availability");
     }
   };
 
@@ -150,7 +191,7 @@ const TeamManagement = () => {
         members: updatedMembers
       });
 
-      setUserTeam({ ...userTeam, members: updatedMembers });
+      setUserTeams(prev => prev.map(t => t.id === userTeam.id ? { ...t, members: updatedMembers } : t));
     } catch (error) {
       console.error("Error updating skill range:", error);
     }
@@ -159,35 +200,13 @@ const TeamManagement = () => {
   const updateTeamSettings = async (settings) => {
     try {
       await updateDoc(doc(db, 'teams', userTeam.id), settings);
-      setUserTeam({ ...userTeam, ...settings });
+      setUserTeams(prev => prev.map(t => t.id === userTeam.id ? { ...t, ...settings } : t));
       toast.success("Team settings updated!");
     } catch (error) {
       console.error("Error updating settings:", error);
       toast.error("Failed to update settings");
     }
   };
-
-  const generateSchedule = (members) => {
-    if (members.length === 0) return [];
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const hours = Array.from({ length: 25 }, (_, i) => i);
-    const commonSlots = [];
-    
-    days.forEach(day => {
-      hours.forEach(hour => {
-        const slotKey = `${day}-${hour}`;
-        const allAvailable = members.every(member => 
-          member.availability && member.availability.includes(slotKey)
-        );
-        
-        if (allAvailable) {
-          commonSlots.push({ day, hour });
-        }
-      });
-    });
-    return commonSlots;
-  };
-
 
   const PageWrapper = ({ children }) => (
     <div className="team-dashboard-page">
@@ -315,6 +334,17 @@ const TeamManagement = () => {
     <PageWrapper>
       <div className="dashboard-header">
         <div className="header-top">
+          {userTeams.length > 1 && (
+            <div className="team-switcher" style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>SWITCH TEAM</label>
+              <CustomDropdown
+                options={userTeams.map(t => ({ value: t.id, label: t.name }))}
+                value={selectedTeamId || ''}
+                onChange={(v) => handleTeamChange(v || null)}
+                placeholder="Select team"
+              />
+            </div>
+          )}
           <div className="team-header-content">
             <div className="team-avatar-section">
               <img 
@@ -359,6 +389,9 @@ const TeamManagement = () => {
             team={userTeam}
             updateAvailability={updateAvailability}
             updateSkillRange={updateSkillRange}
+            updateTeamSettings={updateTeamSettings}
+            updateTeamSchedule={updateTeamSchedule}
+            canEditSettings={canEditSettings}
           />
         )}
 

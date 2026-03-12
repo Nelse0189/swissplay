@@ -322,7 +322,6 @@ New commands are **additive**, not replacements.
 
 ### Phase 1 Tests
 - [ ] Manager verification via website button
-- [ ] Manager verification via `/link` command
 - [ ] Player runs `/my-availability` → bot DMs
 - [ ] Player responds "Weekdays 6-10pm" → saves to Firebase
 - [ ] Player runs `/my-team` → sees roster + availability
@@ -418,12 +417,7 @@ gcloud run services update solaris-discord-bot \
    - Added reminder system
    - Added 15+ helper functions
 
-2. **discord-bot/commands/link.js**
-   - Updated to support self-linking
-   - Better error messages
-   - Dual-mode: manager-link vs self-link
-
-3. **discord-bot/commands/verify.js**
+2. **discord-bot/commands/verify.js**
    - Added guards for empty verification codes
    - Fixed undefined `replyOptions` bug
    - Better error handling
@@ -455,8 +449,7 @@ gcloud run services update solaris-discord-bot \
 1. `/my-availability` ✅ NEW - Set availability via DM
 2. `/my-team` ✅ NEW - View team in DM
 3. `/upcoming-scrims` ✅ NEW - See scheduled scrims
-4. `/link email:you@email.com` ✅ ENHANCED - Self-link/join
-5. `/help` ✅ ENHANCED - Dynamic help
+4. `/help` ✅ ENHANCED - Dynamic help
 
 ### Manager Commands (9 total)
 6. `/add-player @user` ✅ NEW - Add players to team
@@ -467,9 +460,7 @@ gcloud run services update solaris-discord-bot \
 11. `/list-players` ✅ EXISTING - List roster
 12. `/request-availability` ✅ EXISTING (legacy) - Manual requests
 13. `/upload-scrim` ✅ EXISTING - Upload CSV
-14. `/link email:x player:@y` ✅ ENHANCED - Link others
-
-### Total: 14 slash commands
+### Total: 12 slash commands
 
 ---
 
@@ -556,7 +547,7 @@ gcloud run services update solaris-discord-bot \
 ### Session Collections (NEW, Temporary)
 - `addPlayerSessions` - Team picker for `/add-player`
 - `scheduleScrimSessions` - Team picker for `/schedule-scrim`
-- `discordLinkSessions` - Team picker for `/link`
+- `discordLinkSessions` - (Deprecated - was for `/link` flow)
 
 All expire after 15 minutes.
 
@@ -606,7 +597,7 @@ Bot logged in as SwissPlay#4459
 **No action required!** All existing features work as before.
 
 **To use new features:**
-1. Managers: Verify Discord (website button or `/link`)
+1. Managers: Verify Discord (website button in Team Management → Settings)
 2. Players: Run `/my-availability` to set schedule
 
 ### Existing Data

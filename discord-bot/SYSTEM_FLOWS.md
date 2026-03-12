@@ -44,75 +44,30 @@ Manager on Website
             └─> ✅ Manager verified!
 
 
-Option B: Discord Command
-━━━━━━━━━━━━━━━━━━━━━━━
-
-Manager in Discord Server
-      │
-      ├─> /link email:manager@email.com
-      │
-      ├─> Bot searches all teams for email match
-      │
-      ├─> Found manager/owner with matching email?
-      │   │
-      │   YES─> Link Discord ID to team member
-      │   │     Update managerDiscordIds array
-      │   │     Set team.discordGuildId = current server
-      │   │
-      │   └─> ✅ Manager linked + server activated!
-      │
-      └─> NO─> Show team picker (if multiple matches)
-              or error (if no matches)
+Option B: (Deprecated - link command removed)
+Managers now verify exclusively via the website (Team Management → Settings → Verify Discord).
 ```
 
 ---
 
 ## 2. Player Joins Team Flow
 
-**Goal:** Player links their Discord to a team using their email
+**Goal:** Manager adds player to team via /add-player; player receives welcome DM
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                       PLAYER JOIN FLOW                          │
 └─────────────────────────────────────────────────────────────────┘
 
-Player in Discord Server
+Manager in Discord Server
       │
-      ├─> /link email:player@email.com
+      ├─> /add-player @player [role]
       │
-      ├─> Bot checks: Is this email a manager/owner?
-      │   │
-      │   YES─> Bootstrap flow (see above)
-      │   │
-      │   NO─> Continue as player join
+      ├─> Bot adds player to team roster (discordId, discordUsername)
       │
-      ├─> Bot queries teams with discordGuildId = this server
+      ├─> Player receives welcome DM with team info
       │
-      ├─> Found 0 teams?
-      │   └─> Error: "No teams activated. Ask manager to run /link first."
-      │
-      ├─> Found 1 team?
-      │   ├─> Email exists in team.members?
-      │   │   YES─> Link Discord ID to existing member
-      │   │   NO─> Add new member with Player role
-      │   │
-      │   └─> ✅ Linked to team!
-      │
-      └─> Found 2+ teams?
-            │
-            ├─> Create session in discordLinkSessions
-            │
-            ├─> Show dropdown: [Team A] [Team B] [Team C]
-            │
-            ├─> Player selects team
-            │
-            ├─> Email exists in selected team?
-            │   YES─> Link to existing member
-            │   NO─> Add as new Player
-            │
-            └─> ✅ Linked!
-
-Result: Player can now use /my-availability and /my-team
+      └─> ✅ Player can now use /my-availability and /my-team
 ```
 
 ---
@@ -449,10 +404,9 @@ Manager → Website → Create Team
     └─> Team exists in Firestore
         members: [{ owner/manager }]
 
-Manager → Discord → /link email:manager@email.com
-    └─> Discord linked
-        discordGuildId set
-        Team "activated" for server ✅
+Manager → Website → Team Management → Settings → Verify Discord
+    └─> Discord linked via verification DM
+        Team ready for /add-player ✅
 
 Manager → Discord → /add-player @john @jane @mike @lisa @tom
     └─> 5 players added
@@ -664,15 +618,13 @@ All errors are user-friendly and actionable!
 Manager owns: Team A, Team B, Team C
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Manager → /link email:manager@email.com
+Manager → Website → Verify Discord (per team/server)
       │
-      ├─> Bot finds 3 teams with matching manager email
+      ├─> Verification DM sent
       │
-      ├─> Links Discord to all 3 teams
+      ├─> Manager confirms in Discord
       │
-      ├─> Updates managerDiscordIds for all 3
-      │
-      └─> "✅ Linked as manager for 3 team(s)"
+      └─> Discord linked to team(s) ✅
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

@@ -40,12 +40,7 @@ Get your team up and running in **5 minutes**.
 4. Check Discord DMs
 5. Click **"✅ Confirm"**
 
-**Option B: Discord Command**
-1. In your Discord server, run:
-   ```
-   /link email:your@email.com
-   ```
-2. (That's it! No DM needed for self-linking)
+**Option B:** Enter your Discord username in the form below and click the link button to receive a verification DM.
 
 ✅ You're verified and can manage your team!
 
@@ -98,7 +93,7 @@ All players get DMs with a poll. You get real-time updates as they respond.
 
 ### You (Manager)
 ```bash
-/link email:you@email.com       # Link yourself first
+# Verify Discord via website (Team Management → Settings) first
 /add-player @user               # Add team members
 /find-time                      # Find best available times
 /schedule-scrim date:X time:Y   # Schedule + poll team

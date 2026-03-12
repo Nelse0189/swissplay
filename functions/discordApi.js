@@ -50,6 +50,13 @@ export async function sendDM(userId, payload) {
   return sendMessage(channel.id, payload);
 }
 
+/** Search guild members by username (REST API). Requires Server Members Intent. */
+export async function searchGuildMembers(guildId, query, limit = 10) {
+  const encoded = encodeURIComponent(query);
+  const members = await discordFetch(`/guilds/${guildId}/members/search?query=${encoded}&limit=${limit}`);
+  return Array.isArray(members) ? members : [];
+}
+
 /** Interaction webhook - for follow-up messages after initial response */
 export async function interactionFollowUp(applicationId, token, payload) {
   return discordFetch(`/webhooks/${applicationId}/${token}`, {

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, query, where, updateDoc, doc, deleteDoc, runTransaction } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+import { collection, getDocs, getDoc, addDoc, query, where, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
+import { useAuth } from '../context/AuthContext';
 import { rankToSr } from '../constants/overwatchRanks';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
@@ -144,6 +146,8 @@ const getReliabilityTier = (score) => {
 };
 
 const FindScrims = () => {
+  const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const [teams, setTeams] = useState([]);
   const [userTeams, setUserTeams] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -170,8 +174,8 @@ const FindScrims = () => {
     { value: 'All', label: 'All Divisions' },
     { value: 'OWCS', label: 'OWCS' },
     { value: 'Masters', label: 'Masters' },
-    { value: 'Advanced', label: 'Advanced' },
     { value: 'Expert', label: 'Expert' },
+    { value: 'Advanced', label: 'Advanced' },
     { value: 'Open', label: 'Open' }
   ];
 
@@ -191,14 +195,21 @@ const FindScrims = () => {
       setCurrentUser(user);
       if (user) {
         loadTeams();
-        loadUserTeams();
-        loadScrimRequests();
+        loadUserTeams(user);
+        loadScrimRequests(user);
       } else {
         setLoading(false);
       }
     });
     return () => unsubscribe();
   }, []);
+
+  // Also load when authUser from context is available (handles direct nav/refresh)
+  useEffect(() => {
+    if (authUser) {
+      loadUserTeams(authUser);
+    }
+  }, [authUser]);
 
 
   // Load reviews when selectedTeam changes
@@ -221,17 +232,42 @@ const FindScrims = () => {
     }
   };
 
-  const loadUserTeams = async () => {
-    if (!currentUser) {
+  const loadUserTeams = async (user) => {
+    if (!user) {
       setLoading(false);
       return;
     }
     
     try {
+      // Fetch user's Discord ID (for teams where member was added via Discord)
+      let userDiscordId = null;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists() && userDoc.data().discordId) {
+          userDiscordId = userDoc.data().discordId;
+        }
+      } catch {
+        // Ignore - user may not have linked Discord
+      }
+
       const teamsSnapshot = await getDocs(collection(db, 'teams'));
+      const uid = user.uid;
       const teamsData = teamsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(t => t.members && t.members.some(m => m.uid === currentUser.uid));
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => {
+          // Member has uid (web-created teams)
+          if (t.members?.some(m => m.uid === uid)) return true;
+          // User is team owner
+          if (t.ownerId === uid) return true;
+          // Team has memberUids array
+          if (t.memberUids?.includes(uid)) return true;
+          // Member has discordId and user has linked Discord (users collection)
+          if (userDiscordId && t.members?.some(m => m.discordId === userDiscordId)) return true;
+          // Member has matching email (e.g. added via website or /add-player)
+          const userEmail = user.email?.toLowerCase?.();
+          if (userEmail && t.members?.some(m => (m.email?.toLowerCase?.() === userEmail))) return true;
+          return false;
+        });
         
       setUserTeams(teamsData);
       // Only set selectedTeam if we have teams and it's not already a valid team
@@ -252,8 +288,9 @@ const FindScrims = () => {
     }
   };
 
-  const loadScrimRequests = async () => {
-    if (!currentUser) return;
+  const loadScrimRequests = async (userOrNull) => {
+    const user = userOrNull ?? currentUser;
+    if (!user) return;
     try {
       const requestsSnapshot = await getDocs(collection(db, 'scrimRequests'));
       const requestsData = requestsSnapshot.docs.map(doc => ({
@@ -848,6 +885,9 @@ const FindScrims = () => {
          <div className="auth-prompt-container">
           <h2>AUTHENTICATION REQUIRED</h2>
           <p>PLEASE SIGN IN TO ACCESS SCRIM PROTOCOLS.</p>
+          <button className="save-btn" onClick={() => navigate('/auth')}>
+            SIGN IN
+          </button>
         </div>
       </PageWrapper>
     );
@@ -865,10 +905,10 @@ const FindScrims = () => {
            <CustomDropdown
               options={[
                 { value: '', label: '-- SELECT TEAM --' },
-                ...userTeams.map(team => ({ value: team.id, label: team.name }))
+                ...userTeams.filter(t => t.id).map(team => ({ value: String(team.id), label: team.name }))
               ]}
-              value={selectedTeam || ''}
-              onChange={setSelectedTeam}
+              value={selectedTeam ? String(selectedTeam) : ''}
+              onChange={(v) => setSelectedTeam(v && v !== '' ? v : null)}
               placeholder="-- SELECT TEAM --"
             />
         </div>

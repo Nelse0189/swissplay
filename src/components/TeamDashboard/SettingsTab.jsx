@@ -5,7 +5,10 @@ import { db, auth, storage } from '../../firebase/config';
 import { useToast } from '../../context/ToastContext';
 import CustomDropdown from '../UI/CustomDropdown';
 import ImageCropper from '../UI/ImageCropper';
+import Modal from '../UI/Modal';
 import { OVERWATCH_RANK_OPTIONS } from '../../constants/overwatchRanks';
+
+import DiscordLinkingInstructions from '../DiscordLinkingInstructions';
 
 const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const toast = useToast();
@@ -35,6 +38,8 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const [isLinking, setIsLinking] = useState(false);
   const [linkedDiscordId, setLinkedDiscordId] = useState(null);
   const [dmError, setDmError] = useState(null);
+  const [showDiscordHelpModal, setShowDiscordHelpModal] = useState(false);
+  const discordHelpCodeRef = useRef(''); // Ensures code is visible immediately when modal opens
   
   const [pendingVerifications, setPendingVerifications] = useState([]);
   
@@ -292,10 +297,10 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
         isManagerVerification: true // Mark as manager verification
       });
       
+      discordHelpCodeRef.current = code; // Set ref first so code is visible when modal opens
       setVerificationCode(code);
       setVerificationStatus('pending');
-      
-      toast.success('Verification request sent! Check your Discord DMs from the SwissPlay bot and click "Confirm".');
+      setShowDiscordHelpModal(true);
     } catch (error) {
       console.error('Error creating verification:', error);
       toast.error('Failed to create verification. Please try again.');
@@ -337,8 +342,10 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
         dmSent: false
       });
       
+      discordHelpCodeRef.current = code; // Set ref first so code is visible when modal opens
       setVerificationCode(code);
       setVerificationStatus('pending');
+      setShowDiscordHelpModal(true);
       
       // Wait a moment for the bot to process
       setTimeout(() => {
@@ -597,7 +604,33 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
       
       
       <div className="settings-section">
-        <h3>LINK YOUR DISCORD ACCOUNT</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+          <h3 style={{ margin: 0 }}>LINK YOUR DISCORD ACCOUNT</h3>
+          <button
+            type="button"
+            onClick={() => setShowDiscordHelpModal(true)}
+            className="discord-help-btn"
+            title="How to link Discord"
+            aria-label="How to link Discord"
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              border: '1px solid rgba(114, 137, 218, 0.5)',
+              background: 'rgba(114, 137, 218, 0.15)',
+              color: '#7289da',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              flexShrink: 0
+            }}
+          >
+            ?
+          </button>
+        </div>
         <p className="section-desc">
           Link your own Discord account to enable bot commands and availability requests.
         </p>
@@ -617,9 +650,6 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
           >
             {isLinking ? 'SENDING...' : verificationStatus === 'pending' || verificationStatus === 'dm_sent' ? 'CHECK YOUR DISCORD DMS' : 'VERIFY DISCORD (MANAGERS)'}
           </button>
-          <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.75rem', color: 'var(--color-text-secondary, rgba(255,255,255,0.6))' }}>
-            Alternative: Run <code style={{ background: 'rgba(0,0,0,0.4)', padding: '2px 4px', borderRadius: '2px' }}>/link email:{auth.currentUser?.email}</code> in Discord
-          </p>
         </div>
         
         {verificationStatus === 'linked' ? (
@@ -741,6 +771,16 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
           </div>
         )}
       </div>
+
+      {/* Closable Discord linking instructions popup */}
+      <Modal
+        isOpen={showDiscordHelpModal}
+        onClose={() => setShowDiscordHelpModal(false)}
+        title="How to Link Your Discord"
+        type="info"
+      >
+        <DiscordLinkingInstructions verificationCode={discordHelpCodeRef.current || verificationCode || undefined} />
+      </Modal>
 
       {showCropper && imageToCrop && (
         <ImageCropper

@@ -313,3 +313,85 @@
   text-transform: uppercase;
   border-radius: 4px;
 }
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .dashboard-content {
+    padding: 2rem 1rem;
+  }
+
+  .dashboard-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+  }
+
+  .header-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .team-header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .team-avatar-section {
+    width: 80px;
+    height: 80px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .tab-content-container {
+    padding: 1.5rem;
+  }
+
+  .roster-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .schedule-calendar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+    grid-template-columns: repeat(7, minmax(80px, 1fr));
+  }
+
+  .settings-section,
+  .roster-section,
+  .schedule-section {
+    padding: 1.5rem;
+  }
+
+  .form-row .form-group {
+    min-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.4rem;
+  }
+
+  .tab-content-container {
+    padding: 1rem;
+  }
+
+  .photo-upload-controls {
+    flex-direction: column;
+  }
+
+  .upload-photo-btn,
+  .remove-photo-btn {
+    width: 100%;
+  }
+}

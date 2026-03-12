@@ -187,3 +187,13 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
 }
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  .inbox-dropdown {
+    width: calc(100vw - 2rem);
+    max-width: 350px;
+    right: -0.5rem;
+    left: auto;
+  }
+}

@@ -76,3 +76,24 @@ input[type="url"]:focus,
 textarea:focus {
   caret-color: var(--color-accent, #7289da);
 }
+
+/* Touch-friendly improvements for mobile */
+@media (hover: none) and (pointer: coarse) {
+  .nav-link,
+  .nav-dropdown-trigger {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+}
+
+/* Reduce tap highlight on touch devices */
+* {
+  -webkit-tap-highlight-color: rgba(114, 137, 218, 0.2);
+}

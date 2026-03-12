@@ -19,6 +19,7 @@ const PublicTeamProfile = () => {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [isModerator, setIsModerator] = useState(false);
+  const [memberUsernames, setMemberUsernames] = useState({});
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -51,7 +52,26 @@ const PublicTeamProfile = () => {
       if (teamDoc.exists()) {
         const data = teamDoc.data();
         setTeamData({ id: teamDoc.id, ...data });
-        
+
+        // Fetch usernames for members (profiles use username, not UID)
+        const members = data.members || [];
+        const uidToUsername = {};
+        await Promise.all(
+          members
+            .filter(m => m.uid)
+            .map(async (m) => {
+              try {
+                const userDoc = await getDoc(doc(db, 'users', m.uid));
+                if (userDoc.exists() && userDoc.data().username) {
+                  uidToUsername[m.uid] = userDoc.data().username;
+                }
+              } catch (e) {
+                console.warn('Could not fetch username for member', m.uid, e);
+              }
+            })
+        );
+        setMemberUsernames(uidToUsername);
+
         // Load reviews
         const reviewsSnapshot = await getDocs(
           query(collection(db, 'teamReviews'), where('teamId', '==', teamId))
@@ -218,8 +238,12 @@ const PublicTeamProfile = () => {
                         />
                         <div className="player-item-info">
                           <h4 
-                            onClick={() => navigate(`/profile/${member.uid}`)} 
-                            className="player-link"
+                            onClick={() => {
+                              const username = memberUsernames[member.uid];
+                              if (username) navigate(`/profile/${username}`);
+                            }} 
+                            className={memberUsernames[member.uid] ? 'player-link' : ''}
+                            style={memberUsernames[member.uid] ? undefined : { cursor: 'default' }}
                           >
                             {member.name || 'Unknown Player'}
                           </h4>

@@ -5,6 +5,7 @@ import Footer from './components/Footer';
 import BetaBanner from './components/BetaBanner';
 import PageTransition from './components/PageTransition';
 import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
 import Home from './pages/Home';
 import About from './pages/About';
 import Creators from './pages/Creators';
@@ -23,6 +24,7 @@ import Contact from './pages/Contact';
 import JoinTeam from './pages/JoinTeam';
 import CreateTeam from './pages/CreateTeam';
 import FreeAgents from './pages/FreeAgents';
+import Ringers from './pages/Ringers';
 import ScrimLogGuide from './pages/ScrimLogGuide';
 import NotFound from './pages/NotFound';
 import { colorPalettes } from './styles/palettes';
@@ -101,6 +103,7 @@ function App() {
   return (
     <Router>
       <ToastProvider>
+        <AuthProvider>
         <div className="app">
           <BetaBanner />
           <Header />
@@ -125,6 +128,7 @@ function App() {
                 <Route path="/teams/join" element={<JoinTeam />} />
                 <Route path="/teams/create" element={<CreateTeam />} />
                 <Route path="/free-agents" element={<FreeAgents />} />
+                <Route path="/ringers" element={<Ringers />} />
                 <Route path="/scrim-guide" element={<ScrimLogGuide />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
@@ -132,6 +136,7 @@ function App() {
           </main>
           <Footer />
         </div>
+        </AuthProvider>
       </ToastProvider>
     </Router>
   );

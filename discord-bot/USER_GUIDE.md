@@ -94,18 +94,6 @@ Can you make it?
 
 ### Team Setup
 
-#### `/link email:your@email.com`
-**First step as a manager**: Link your Discord account to "activate" the server for your team.
-
-**What it does:**
-- Links your Discord to your manager profile
-- Activates your team(s) for this Discord server
-- Enables you to use all manager commands
-
-**Multiple teams:** If you manage Team A and Team B, running this links you to both.
-
----
-
 #### `/add-player @user`
 Add a Discord server member to your team.
 
@@ -256,7 +244,6 @@ See all players in your team with availability status.
 **Why website verification?**
 - Security: Prevents unauthorized users from managing your team
 - You only need to do it once per Discord account
-- Alternative: Run `/link email:your@manager-email.com` in Discord (but website button is easier)
 
 ---
 
@@ -286,7 +273,6 @@ Everything you need is in Discord:
 | `/my-availability` | Set your availability | Anywhere (DM opens) |
 | `/my-team` | View team info | Anywhere (DM opens) |
 | `/upcoming-scrims` | See scheduled scrims | Anywhere (DM opens) |
-| `/link email:you@email.com` | Link/join a team | Server |
 | `/help` | Show help | Anywhere |
 
 ---
@@ -383,17 +369,16 @@ Scrim shows on website schedule
 1. Go to website → Team Management → Settings
 2. Click "VERIFY DISCORD (MANAGERS)" button
 3. Check Discord DMs and click "✅ Confirm"
-4. Alternative: Run `/link email:your@manager-email.com` in Discord server
 
 ---
 
 ### "No teams found for this server"
-**Cause:** No manager has "activated" this Discord server yet
+**Cause:** No manager has verified their Discord for this server yet
 
 **Solutions:**
-1. Manager needs to run `/link email:manager@email.com` first
-2. This activates the team for that Discord server
-3. Then players can join/link
+1. Manager needs to verify Discord on the website (Team Management → Settings → "Verify Discord")
+2. Invite the bot to your Discord server
+3. Then managers can add players via `/add-player`
 
 ---
 
@@ -582,7 +567,6 @@ Want a new feature? Let us know! The bot is actively being improved.
 ### v1.0 (Previous) - Basic Features
 - `/request-availability` - Manual availability requests
 - `/list-players` - View roster
-- `/link` - Manual linking
 - `/upload-scrim` - CSV upload
 
 ---
@@ -596,12 +580,10 @@ Want a new feature? Let us know! The bot is actively being improved.
 /my-availability
 /my-team  
 /upcoming-scrims
-/link email:yourname@example.com
 ```
 
 **For Managers:**
 ```
-/link email:manager@example.com
 /add-player @username
 /schedule-scrim date:tomorrow time:7pm
 /find-time

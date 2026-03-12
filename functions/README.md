@@ -63,7 +63,7 @@ Once this is working, **stop the Cloud Run deployment** so you don't have two bo
 
 ## Limitations vs. Cloud Run bot
 
-- **DM text parsing**: Users can't reply with natural language availability in DMs (e.g. "Weekdays 6-10pm"). They must use the `/my-availability` flow which sends a DM with instructions. For text-based availability updates, consider adding a modal in a future update.
+- **Availability setting**: Users set availability via a **dropdown** with presets (e.g. "Weekdays 6-10pm", "Weekends anytime") when they run `/my-availability`. A "Custom" option opens a modal for free-text input. Works in DMs and servers.
 - **Verification by username**: The Firestore trigger only sends DMs for **manager verification** (when we have the manager's Discord ID from the team). Username-based verification (invites) requires the gateway to search guild members; that flow is not supported in HTTP-only mode.
 
 ## Functions deployed
