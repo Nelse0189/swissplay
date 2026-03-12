@@ -169,6 +169,7 @@ const FindScrims = () => {
   // Filters
   const [divisionFilter, setDivisionFilter] = useState('All');
   const [dayFilter, setDayFilter] = useState('All');
+  const [regionFilter, setRegionFilter] = useState('All');
 
   const divisionOptions = [
     { value: 'All', label: 'All Divisions' },
@@ -188,6 +189,15 @@ const FindScrims = () => {
     { value: 'Friday', label: 'Friday' },
     { value: 'Saturday', label: 'Saturday' },
     { value: 'Sunday', label: 'Sunday' }
+  ];
+
+  const regionOptions = [
+    { value: 'All', label: 'All Regions' },
+    { value: 'NA', label: 'NA' },
+    { value: 'EU', label: 'EU' },
+    { value: 'OCE', label: 'OCE' },
+    { value: 'Asia', label: 'Asia' },
+    { value: 'SA', label: 'SA' }
   ];
 
   useEffect(() => {
@@ -343,6 +353,10 @@ const FindScrims = () => {
       if (!team.schedule || team.schedule.length === 0) return false;
 
       if (divisionFilter !== 'All' && team.faceitDiv !== divisionFilter) {
+        return false;
+      }
+
+      if (regionFilter !== 'All' && team.region !== regionFilter) {
         return false;
       }
 
@@ -924,6 +938,14 @@ const FindScrims = () => {
                   options={divisionOptions}
                   value={divisionFilter}
                   onChange={setDivisionFilter}
+                />
+              </div>
+              <div className="form-group">
+                <label>FILTER BY REGION</label>
+                <CustomDropdown 
+                  options={regionOptions}
+                  value={regionFilter}
+                  onChange={setRegionFilter}
                 />
               </div>
               <div className="form-group">

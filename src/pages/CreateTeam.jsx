@@ -26,8 +26,9 @@ const CreateTeam = () => {
   const regionOptions = [
     { value: 'NA', label: 'North America' },
     { value: 'EU', label: 'Europe' },
-    { value: 'KR', label: 'Korea' },
-    { value: 'CN', label: 'China' }
+    { value: 'OCE', label: 'Oceania' },
+    { value: 'Asia', label: 'Asia' },
+    { value: 'SA', label: 'South America' }
   ];
 
   const divisionOptions = [
