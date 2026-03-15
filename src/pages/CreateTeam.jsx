@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase/config';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import { OVERWATCH_RANK_OPTIONS } from '../constants/overwatchRanks';
+import { REGION_OPTIONS } from '../constants/regions';
 import './CreateTeam.css';
 
 const CreateTeam = () => {
@@ -23,13 +24,7 @@ const CreateTeam = () => {
     faceitDiv: 'Open'
   });
 
-  const regionOptions = [
-    { value: 'NA', label: 'North America' },
-    { value: 'EU', label: 'Europe' },
-    { value: 'OCE', label: 'Oceania' },
-    { value: 'Asia', label: 'Asia' },
-    { value: 'SA', label: 'South America' }
-  ];
+  const regionOptions = REGION_OPTIONS;
 
   const divisionOptions = [
     { value: 'OWCS', label: 'OWCS' },
@@ -89,19 +84,43 @@ const CreateTeam = () => {
 
     setSubmitting(true);
     try {
+      // Get creator's Discord ID so new team shows up in /add-player dropdown immediately
+      let creatorDiscordId = null;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists() && userDoc.data().discordId) {
+          creatorDiscordId = userDoc.data().discordId;
+        }
+      } catch (_) {}
+      if (!creatorDiscordId) {
+        const ownerTeams = await getDocs(query(collection(db, 'teams'), where('ownerId', '==', user.uid)));
+        for (const d of ownerTeams.docs) {
+          const member = d.data().members?.find(m => m.uid === user.uid);
+          if (member?.discordId) {
+            creatorDiscordId = member.discordId;
+            break;
+          }
+        }
+      }
+
+      const initialMember = {
+        uid: user.uid,
+        name: user.displayName || user.email?.split('@')[0] || 'User',
+        email: user.email,
+        roles: ['Owner', 'Manager'],
+        availability: []
+      };
+      if (creatorDiscordId) {
+        initialMember.discordId = creatorDiscordId;
+      }
+
       const teamData = {
         ...formData,
         abbreviation: formData.abbreviation || generateAbbreviation(formData.name),
         ownerId: user.uid,
-        members: [{
-          uid: user.uid,
-          name: user.displayName || user.email?.split('@')[0] || 'User',
-          email: user.email,
-          roles: ['Owner', 'Manager'],
-          availability: []
-        }],
+        members: [initialMember],
         memberUids: [user.uid],
-        managerDiscordIds: [],
+        managerDiscordIds: creatorDiscordId ? [creatorDiscordId] : [],
         schedule: [],
         reliabilityScore: 100,
         createdAt: new Date()

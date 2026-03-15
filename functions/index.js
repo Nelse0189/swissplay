@@ -7,7 +7,7 @@
  */
 
 import { onRequest } from 'firebase-functions/v2/https';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { config } from 'firebase-functions';
 import admin from 'firebase-admin';
@@ -622,6 +622,83 @@ export const onVerificationCreated = onDocumentCreated(
         });
       }
     }
+  }
+);
+
+// --- Firestore trigger: create calendar events when scrim request is accepted ---
+export const onScrimRequestUpdated = onDocumentUpdated(
+  { document: 'scrimRequests/{requestId}' },
+  async (event) => {
+    const after = event.data?.after;
+    if (!after?.exists) return;
+    const data = after.data();
+    if (data.status !== 'accepted') return;
+    const beforeData = event.data?.before?.data();
+    if (beforeData?.status === 'accepted') return; // Already was accepted
+
+    const slot = data.slot;
+    if (!slot?.day || slot?.hour === undefined) return;
+
+    const db = admin.firestore();
+    const fromTeamDoc = await db.collection('teams').doc(data.fromTeamId).get();
+    const toTeamDoc = await db.collection('teams').doc(data.toTeamId).get();
+    if (!fromTeamDoc.exists || !toTeamDoc.exists) return;
+
+    const fromTeam = fromTeamDoc.data();
+    const toTeam = toTeamDoc.data();
+
+    let startDate;
+    if (slot.scheduledDate) {
+      startDate = slot.scheduledDate?.toDate ? slot.scheduledDate.toDate() : new Date(slot.scheduledDate);
+    } else {
+      const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const targetDayIndex = daysOfWeek.indexOf(slot.day);
+      if (targetDayIndex === -1) return;
+      const now = new Date();
+      const created = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+      let daysUntil = targetDayIndex - created.getDay();
+      if (daysUntil < 0) daysUntil += 7;
+      else if (daysUntil === 0 && created.getHours() > slot.hour) daysUntil += 7;
+      startDate = new Date(created);
+      startDate.setDate(created.getDate() + daysUntil);
+      startDate.setHours(slot.hour, 0, 0, 0);
+    }
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+
+    const baseEvent = {
+      title: `Scrim vs ${data.fromTeamId === fromTeamDoc.id ? data.toTeamName : data.fromTeamName}`,
+      description: null,
+      startTime: admin.firestore.Timestamp.fromDate(startDate),
+      endTime: admin.firestore.Timestamp.fromDate(endDate),
+      recurrenceRule: null,
+      eventType: 'scrim',
+      reminders: [60, 1440],
+      colorEmoji: '⚔️',
+      scrimRequestId: event.params.requestId,
+      remindersSent: {}
+    };
+
+    const createForTeam = async (teamId, team, opponentName) => {
+      const existing = await db.collection('calendarEvents')
+        .where('teamId', '==', teamId)
+        .where('scrimRequestId', '==', event.params.requestId)
+        .limit(1)
+        .get();
+      if (!existing.empty) return;
+
+      await db.collection('calendarEvents').add({
+        ...baseEvent,
+        title: `Scrim vs ${opponentName}`,
+        teamId,
+        discordGuildId: team.discordGuildId || null,
+        createdBy: null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    };
+
+    await createForTeam(data.fromTeamId, fromTeam, data.toTeamName);
+    await createForTeam(data.toTeamId, toTeam, data.fromTeamName);
   }
 );
 

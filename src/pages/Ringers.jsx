@@ -15,10 +15,10 @@ import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import { useToast } from '../context/ToastContext';
 import { OW_RANK_DIVISIONS, OW_RANK_OPTIONS_FOR_DROPDOWN, getRankLabel, getRankValueForSr } from '../utils/overwatchRanks';
+import { REGION_FORM_OPTIONS, REGION_FILTER_BROWSE_OPTIONS, getRegionDisplay } from '../constants/regions';
 import './FreeAgents.css';
 
 const ROLES = ['Tank', 'DPS', 'Support', 'Flex'];
-const REGIONS = ['NA', 'EU', 'OCE', 'Asia', 'SA'];
 const OW_RANKS = OW_RANK_DIVISIONS;
 
 const Ringers = () => {
@@ -458,10 +458,7 @@ const Ringers = () => {
                     <div className="form-group">
                       <label>REGION</label>
                       <CustomDropdown
-                        options={[
-                          { value: '', label: 'Select region' },
-                          ...REGIONS.map((r) => ({ value: r, label: r })),
-                        ]}
+                        options={REGION_FORM_OPTIONS('Select region')}
                         value={formData.region}
                         onChange={(v) => setFormData({ ...formData, region: v })}
                         placeholder="Select region"
@@ -510,7 +507,7 @@ const Ringers = () => {
                   </div>
                   <div className="form-actions">
                     <button type="submit" className="save-btn" disabled={saving}>
-                      {saving ? 'SAVING...' : myListing ? 'UPDATE LISTING' : formData.listingType === 'team' ? 'LIST TEAM (NEED RINGER)' : 'LIST AS PLAYER (AVAILABLE TO RING)'}
+                      {saving ? 'SAVING...' : myListing ? 'UPDATE LISTING' : formData.listingType === 'team' ? 'List Ringer Request' : 'LIST AS PLAYER (AVAILABLE TO RING)'}
                     </button>
                     {myListing && (
                       <button
@@ -559,10 +556,7 @@ const Ringers = () => {
                 <div className="filter-group">
                   <label>Region</label>
                   <CustomDropdown
-                    options={[
-                      { value: '', label: 'All regions' },
-                      ...REGIONS.map((r) => ({ value: r, label: r })),
-                    ]}
+                    options={REGION_FILTER_BROWSE_OPTIONS}
                     value={filters.region}
                     onChange={(v) => setFilters({ ...filters, region: v })}
                     placeholder="All regions"
@@ -644,7 +638,7 @@ const Ringers = () => {
                               </span>
                             )}
                             {agent.sr && <span className="meta-tag sr">{getRankLabel(agent.sr)}</span>}
-                            {agent.region && <span className="meta-tag region">{agent.region}</span>}
+                            {agent.region && <span className="meta-tag region">{getRegionDisplay(agent.region)}</span>}
                           </div>
                         </div>
                       </div>

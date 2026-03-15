@@ -47,9 +47,19 @@ gcloud secrets add-iam-policy-binding DISCORD_TOKEN \
 
 Then update `index.js` to use `defineSecret` for the token.
 
-### 4. Register slash commands (one-time)
+### 4. Register slash commands (one-time or after changes)
 
-If your commands aren't registered yet, run the registration script from the `discord-bot` folder (or use the Discord Developer Portal to add them manually).
+When using Firebase Functions (no running Node instance), run the registration script whenever you add or change slash commands:
+
+```bash
+cd discord-bot
+cp .env.example .env   # if needed; fill in DISCORD_TOKEN, DISCORD_CLIENT_ID
+node register-commands.js
+```
+
+- **DISCORD_TOKEN** – bot token from Discord Developer Portal  
+- **DISCORD_CLIENT_ID** – application ID (same portal)  
+- **DISCORD_GUILD_ID** (optional) – server ID for instant updates; without it, global updates can take up to 1 hour
 
 ### 5. Deploy
 

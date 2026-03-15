@@ -97,3 +97,149 @@ textarea:focus {
 * {
   -webkit-tap-highlight-color: rgba(114, 137, 218, 0.2);
 }
+
+/* Region globe + label layout (dropdowns, badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.region-display .region-globe {
+  flex-shrink: 0;
+}
+
+/* Region globe icons in dropdowns and badges */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Region globe + label layout (dropdowns, badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.region-display {
+  white-space: nowrap;
+}
+
+.meta-tag.region .region-display {
+  display: inline-flex;
+}
+
+/* Region globe + label layout (dropdowns, badges, meta-tags) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meta-tag.region .region-display {
+  display: inline-flex;
+}
+
+/* Region globe + label (dropdowns, badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meta-tag.region .region-display {
+  display: inline-flex;
+}
+
+/* Region globe display (dropdown options + badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meta-tag.region .region-display,
+.meta-tag.region {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Region globe icons in dropdowns and badges */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.region-display .region-globe {
+  flex-shrink: 0;
+}
+
+/* Region globe labels in dropdowns and badges */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meta-tag.region .region-display,
+.meta-tag.region .region-globe {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Region globe (dropdown options + badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.region-display .region-globe {
+  flex-shrink: 0;
+}
+
+/* Region globe labels in dropdowns and badges */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.region-display .region-globe {
+  flex-shrink: 0;
+}
+
+/* Region globe + label layout (dropdowns and badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Region globe (dropdown options & badges) */
+.region-option-label,
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.region-option-label .region-globe,
+.region-display .region-globe {
+  flex-shrink: 0;
+}

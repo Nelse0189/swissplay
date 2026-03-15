@@ -4,6 +4,7 @@ import { collection, getDocs, getDoc, addDoc, query, where, updateDoc, doc, dele
 import { db, auth } from '../firebase/config';
 import { useAuth } from '../context/AuthContext';
 import { rankToSr } from '../constants/overwatchRanks';
+import { REGION_FILTER_OPTIONS, getRegionDisplay } from '../constants/regions';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import Modal from '../components/UI/Modal';
@@ -189,15 +190,6 @@ const FindScrims = () => {
     { value: 'Friday', label: 'Friday' },
     { value: 'Saturday', label: 'Saturday' },
     { value: 'Sunday', label: 'Sunday' }
-  ];
-
-  const regionOptions = [
-    { value: 'All', label: 'All Regions' },
-    { value: 'NA', label: 'NA' },
-    { value: 'EU', label: 'EU' },
-    { value: 'OCE', label: 'OCE' },
-    { value: 'Asia', label: 'Asia' },
-    { value: 'SA', label: 'SA' }
   ];
 
   useEffect(() => {
@@ -943,7 +935,7 @@ const FindScrims = () => {
               <div className="form-group">
                 <label>FILTER BY REGION</label>
                 <CustomDropdown 
-                  options={regionOptions}
+                  options={REGION_FILTER_OPTIONS}
                   value={regionFilter}
                   onChange={setRegionFilter}
                 />
@@ -981,7 +973,7 @@ const FindScrims = () => {
                           <div className="team-card-header-info">
                             <h3>{team.name}</h3>
                             <div className="team-card-meta">
-                              <span>REGION: {team.region}</span>
+                              <span>REGION: {getRegionDisplay(team.region) || team.region || 'N/A'}</span>
                               <span>{typeof team.sr === 'number' ? `SR: ${team.sr}` : (team.sr || 'N/A')}</span>
                               <span className={`reliability-badge reliability-${getReliabilityTier(team.reliabilityScore ?? 100)}`} title="Team reliability: responds quickly, rarely drops scrims">
                                 RELIABILITY: {team.reliabilityScore ?? 100}

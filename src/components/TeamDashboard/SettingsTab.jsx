@@ -7,6 +7,7 @@ import CustomDropdown from '../UI/CustomDropdown';
 import ImageCropper from '../UI/ImageCropper';
 import Modal from '../UI/Modal';
 import { OVERWATCH_RANK_OPTIONS } from '../../constants/overwatchRanks';
+import { REGION_OPTIONS } from '../../constants/regions';
 
 import DiscordLinkingInstructions from '../DiscordLinkingInstructions';
 
@@ -42,6 +43,8 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const discordHelpCodeRef = useRef(''); // Ensures code is visible immediately when modal opens
   
   const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [showDeprecateModal, setShowDeprecateModal] = useState(false);
+  const [isDeprecating, setIsDeprecating] = useState(false);
   
   // Check if user already has Discord linked
   useEffect(() => {
@@ -128,13 +131,7 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
     return () => unsubscribe();
   }, [verificationCode, verificationStatus]);
 
-  const regionOptions = [
-    { value: 'NA', label: 'North America' },
-    { value: 'EU', label: 'Europe' },
-    { value: 'OCE', label: 'Oceania' },
-    { value: 'Asia', label: 'Asia' },
-    { value: 'SA', label: 'South America' }
-  ];
+  const regionOptions = REGION_OPTIONS;
 
   const divisionOptions = [
     { value: 'OWCS', label: 'OWCS' },
@@ -311,6 +308,31 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
     }
   };
 
+  const handleDeprecateConfirm = async () => {
+    setIsDeprecating(true);
+    try {
+      await updateTeamSettings({ deprecated: true });
+      setShowDeprecateModal(false);
+      toast.success('Team has been deprecated.');
+    } catch (error) {
+      toast.error('Failed to deprecate team.');
+    } finally {
+      setIsDeprecating(false);
+    }
+  };
+
+  const handleRestoreTeam = async () => {
+    setIsDeprecating(true);
+    try {
+      await updateTeamSettings({ deprecated: false });
+      toast.success('Team has been restored.');
+    } catch (error) {
+      toast.error('Failed to restore team.');
+    } finally {
+      setIsDeprecating(false);
+    }
+  };
+
   const handleLinkDiscord = async () => {
     if (!discordUsername.trim()) {
       toast.error('Please enter your Discord username');
@@ -362,7 +384,6 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
       setIsLinking(false);
     }
   };
-  
 
   return (
     <div className="settings-tab">
@@ -557,6 +578,37 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
               ))}
             </div>
           )}
+          </div>
+
+          <div className="settings-section" style={{ borderColor: 'rgba(255, 100, 100, 0.4)' }}>
+            <h3 style={{ color: 'rgba(255, 100, 100, 0.9)' }}>TEAM STATUS</h3>
+            <p className="section-desc">
+              Deprecating marks your team as inactive. Deprecated teams may be hidden from scrim finders and public listings.
+            </p>
+            {team.deprecated ? (
+              <div style={{ padding: '1rem', background: 'rgba(255, 100, 100, 0.1)', borderRadius: '4px', marginTop: '0.5rem' }}>
+                <p style={{ color: 'rgba(255, 200, 200, 0.9)', margin: '0 0 1rem 0' }}>
+                  This team is deprecated. Restore it to make it active again.
+                </p>
+                <button
+                  className="save-btn"
+                  onClick={handleRestoreTeam}
+                  disabled={isDeprecating}
+                  style={{ background: 'rgba(0, 200, 100, 0.3)', borderColor: 'rgba(0, 200, 100, 0.6)' }}
+                >
+                  {isDeprecating ? 'RESTORING...' : 'RESTORE TEAM'}
+                </button>
+              </div>
+            ) : (
+              <button
+                className="remove-photo-btn"
+                onClick={() => setShowDeprecateModal(true)}
+                disabled={isDeprecating}
+                style={{ marginTop: '0.5rem' }}
+              >
+                DEPRECATE TEAM
+              </button>
+            )}
           </div>
         </>
       )}
@@ -781,6 +833,35 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
         type="info"
       >
         <DiscordLinkingInstructions verificationCode={discordHelpCodeRef.current || verificationCode || undefined} />
+      </Modal>
+
+      {/* Deprecate team confirmation */}
+      <Modal
+        isOpen={showDeprecateModal}
+        onClose={() => !isDeprecating && setShowDeprecateModal(false)}
+        title="Deprecate Team"
+        type="warning"
+      >
+        <p style={{ margin: '0 0 1rem 0', color: 'var(--color-text-secondary, rgba(255,255,255,0.8))' }}>
+          Deprecating will mark this team as inactive. Deprecated teams may be hidden from scrim finders, public team listings, and other discovery features. You can restore the team at any time.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button
+            className="save-btn"
+            onClick={() => setShowDeprecateModal(false)}
+            disabled={isDeprecating}
+            style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.4)' }}
+          >
+            CANCEL
+          </button>
+          <button
+            className="remove-photo-btn"
+            onClick={handleDeprecateConfirm}
+            disabled={isDeprecating}
+          >
+            {isDeprecating ? 'DEPRECATING...' : 'DEPRECATE TEAM'}
+          </button>
+        </div>
       </Modal>
 
       {showCropper && imageToCrop && (

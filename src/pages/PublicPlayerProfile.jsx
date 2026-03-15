@@ -4,6 +4,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db, auth } from '../firebase/config';
 import LoadingState from '../components/UI/LoadingState';
 import DiscordLinkingSection from '../components/DiscordLinkingSection';
+import { getRegionDisplay } from '../constants/regions';
 import './PublicPlayerProfile.css';
 
 const PublicPlayerProfile = () => {
@@ -160,7 +161,7 @@ const PublicPlayerProfile = () => {
                                 {team.name}
                               </h4>
                               <span className="team-meta">
-                                {team.region} • {team.faceitDiv || 'Open'}
+                                {getRegionDisplay(team.region) || team.region} • {team.faceitDiv || 'Open'}
                               </span>
                             </div>
                           </div>

@@ -75,6 +75,11 @@
   border-radius: 0 0 8px 8px;
 }
 
+/* Portal version: rendered to body, escapes parent stacking contexts, always on top */
+.dropdown-list.dropdown-list-portal {
+  z-index: 100000;
+}
+
 @keyframes dropdownFadeIn {
   from {
     opacity: 0;
@@ -120,6 +125,26 @@
 
 .dropdown-item.empty:hover {
   background: transparent;
+}
+
+/* Region option labels (globe + text) */
+.region-option-label,
+.dropdown-item .region-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.selected-value .region-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Scrollbar for the list */

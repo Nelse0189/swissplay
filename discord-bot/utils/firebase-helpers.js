@@ -119,6 +119,25 @@ export async function getPlayerByDiscordId(discordId, teamId) {
 }
 
 /**
+ * Get user by Discord ID (from users collection where discordId matches)
+ */
+export async function getUserByDiscordId(discordId) {
+  const db = getFirestore();
+  try {
+    const snapshot = await db.collection('users')
+      .where('discordId', '==', discordId)
+      .limit(1)
+      .get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { uid: doc.id, ...doc.data() };
+  } catch (error) {
+    console.error('Error in getUserByDiscordId:', error);
+    return null;
+  }
+}
+
+/**
  * Get all teams
  */
 export async function getAllTeams() {
@@ -127,4 +146,18 @@ export async function getAllTeams() {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
-
+/**
+ * Get all teams where user is manager (by Discord ID)
+ */
+export async function getManagerTeams(discordId) {
+  const db = getFirestore();
+  try {
+    const snapshot = await db.collection('teams')
+      .where('managerDiscordIds', 'array-contains', discordId)
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error getting manager teams:', error);
+    return [];
+  }
+}

@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { collection, addDoc, getDocs, doc, updateDoc, query, where, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, query, where, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import { useToast } from '../context/ToastContext';
 import { createNotification } from '../utils/notifications';
 import ScheduleTab from '../components/TeamDashboard/ScheduleTab';
+import CalendarTab from '../components/TeamDashboard/CalendarTab';
 import AvailabilityTab from '../components/TeamDashboard/AvailabilityTab';
 import SettingsTab from '../components/TeamDashboard/SettingsTab';
 import ScrimLogTab from '../components/TeamDashboard/ScrimLogTab';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import CustomTabs from '../components/UI/CustomTabs';
 import { OVERWATCH_RANK_OPTIONS } from '../constants/overwatchRanks';
+import { REGION_OPTIONS, getRegionDisplay } from '../constants/regions';
 import LoadingState from '../components/UI/LoadingState';
 import '../components/TeamDashboard/TeamDashboard.css';
 
@@ -31,13 +33,7 @@ const TeamManagement = () => {
     faceitDiv: 'Open'
   });
 
-  const regionOptions = [
-    { value: 'NA', label: 'North America' },
-    { value: 'EU', label: 'Europe' },
-    { value: 'OCE', label: 'Oceania' },
-    { value: 'Asia', label: 'Asia' },
-    { value: 'SA', label: 'South America' }
-  ];
+  const regionOptions = REGION_OPTIONS;
 
   const divisionOptions = [
     { value: 'OWCS', label: 'OWCS' },
@@ -109,16 +105,41 @@ const TeamManagement = () => {
     if (!newTeamData.name.trim()) return;
 
     try {
+      // Get creator's Discord ID so new team shows up in /add-player dropdown immediately
+      let creatorDiscordId = null;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists() && userDoc.data().discordId) {
+          creatorDiscordId = userDoc.data().discordId;
+        }
+      } catch (_) {}
+      if (!creatorDiscordId) {
+        const ownerTeams = await getDocs(query(collection(db, 'teams'), where('ownerId', '==', currentUser.uid)));
+        for (const d of ownerTeams.docs) {
+          const member = d.data().members?.find(m => m.uid === currentUser.uid);
+          if (member?.discordId) {
+            creatorDiscordId = member.discordId;
+            break;
+          }
+        }
+      }
+
+      const initialMember = {
+        uid: currentUser.uid,
+        name: currentUser.displayName || currentUser.email.split('@')[0],
+        roles: ['Owner', 'Manager'],
+        availability: []
+      };
+      if (creatorDiscordId) {
+        initialMember.discordId = creatorDiscordId;
+      }
+
       const teamData = {
         ...newTeamData,
         ownerId: currentUser.uid,
-        members: [{
-          uid: currentUser.uid,
-          name: currentUser.displayName || currentUser.email.split('@')[0],
-          roles: ['Owner', 'Manager'],
-          availability: []
-        }],
+        members: [initialMember],
         memberUids: [currentUser.uid],
+        managerDiscordIds: creatorDiscordId ? [creatorDiscordId] : [],
         schedule: [],
         reliabilityScore: 100,
         createdAt: new Date()
@@ -309,6 +330,18 @@ const TeamManagement = () => {
         </svg>
       )
     },
+    { 
+      id: 'calendar', 
+      label: 'CALENDAR',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '1.2em', height: '1.2em', marginRight: '0.4rem', verticalAlign: 'middle' }}>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+      )
+    },
     ...(canEditAvailability ? [{ 
       id: 'availability', 
       label: 'AVAILABILITY',
@@ -360,7 +393,7 @@ const TeamManagement = () => {
             <div className="team-header-text">
               <h1>{userTeam.name}</h1>
               <div className="team-badges">
-                <span className="badge">{userTeam.region}</span>
+                <span className="badge">{getRegionDisplay(userTeam.region) || userTeam.region}</span>
                 {userTeam.sr && <span className="badge">{typeof userTeam.sr === 'number' ? `SR ${userTeam.sr}` : userTeam.sr}</span>}
                 {userTeam.faceitDiv && <span className="badge">{userTeam.faceitDiv}</span>}
               </div>
@@ -381,6 +414,13 @@ const TeamManagement = () => {
             team={userTeam} 
             members={userTeam.members} 
             currentUser={currentUser}
+          />
+        )}
+
+        {activeTab === 'calendar' && (
+          <CalendarTab 
+            team={userTeam}
+            canEditSettings={canEditSettings}
           />
         )}
         

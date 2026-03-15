@@ -1,13 +1,13 @@
 import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { getFirestore } from '../firebase/config.js';
-import { getManagerTeams } from '../utils/firebase-helpers.js';
+import { getTeamByManagerDiscordId, getManagerTeams } from '../utils/firebase-helpers.js';
 
 const WEBSITE_URL = process.env.WEBSITE_URL || 'https://solaris-cd166.web.app';
 
 /**
- * Handle /find-free-agents - Managers browse free agents from Firestore
+ * Handle /find-ringers - Managers browse ringers (LFR) from Firestore
  */
-export async function handleFindFreeAgentsSlash(interaction) {
+export async function handleFindRingersSlash(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const roleFilter = interaction.options.getString('role') || null;
@@ -17,40 +17,40 @@ export async function handleFindFreeAgentsSlash(interaction) {
   const db = getFirestore();
 
   try {
-    const snapshot = await db.collection('freeAgents').get();
-    let agents = snapshot.docs
+    const snapshot = await db.collection('ringers').get();
+    let ringers = snapshot.docs
       .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((a) => a.status !== 'signed');
+      .filter((r) => r.status !== 'signed');
 
     if (roleFilter) {
-      agents = agents.filter(
-        (a) =>
-          (a.preferredRoles || []).includes(roleFilter) ||
-          (a.preferredRoles || []).includes('Flex')
+      ringers = ringers.filter(
+        (r) =>
+          (r.preferredRoles || []).includes(roleFilter) ||
+          (r.preferredRoles || []).includes('Flex')
       );
     }
     if (regionFilter) {
-      agents = agents.filter((a) => a.region === regionFilter);
+      ringers = ringers.filter((r) => r.region === regionFilter);
     }
     if (minSr != null && minSr > 0) {
-      agents = agents.filter((a) => (a.sr || 0) >= minSr);
+      ringers = ringers.filter((r) => (r.sr || 0) >= minSr);
     }
 
-    agents.sort((a, b) => {
+    ringers.sort((a, b) => {
       const aTime = a.updatedAt?.toMillis?.() || 0;
       const bTime = b.updatedAt?.toMillis?.() || 0;
       return bTime - aTime;
     });
 
-    const displayCount = Math.min(agents.length, 10);
+    const displayCount = Math.min(ringers.length, 10);
 
-    if (agents.length === 0) {
+    if (ringers.length === 0) {
       const embed = new EmbedBuilder()
         .setColor(0xED4245)
-        .setTitle('No Free Agents Found')
+        .setTitle('No Ringers Found')
         .setDescription(
-          'No free agents match your filters. ' +
-          `Try browsing on the website: ${WEBSITE_URL}/free-agents`
+          'No ringers match your filters. ' +
+          `Try browsing on the website: ${WEBSITE_URL}/ringers`
         );
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -58,64 +58,65 @@ export async function handleFindFreeAgentsSlash(interaction) {
 
     const embed = new EmbedBuilder()
       .setColor(0x57F287)
-      .setTitle(`🏃 Free Agents (${displayCount} of ${agents.length})`)
+      .setTitle(`🔔 Ringers - LFR (${displayCount} of ${ringers.length})`)
       .setDescription(
-        `Browse all free agents: ${WEBSITE_URL}/free-agents\n` +
+        `Browse all ringers: ${WEBSITE_URL}/ringers\n` +
         (roleFilter || regionFilter || minSr ? `Filters: ${[roleFilter, regionFilter, minSr ? `SR≥${minSr}` : null].filter(Boolean).join(', ')}` : '')
       );
 
     for (let i = 0; i < displayCount; i++) {
-      const a = agents[i];
-      const roles = (a.preferredRoles || []).join(', ') || 'Flex';
-      const meta = [a.sr ? `${a.sr} SR` : null, a.region].filter(Boolean).join(' · ');
-      const bio = a.bio ? (a.bio.length > 80 ? a.bio.slice(0, 77) + '...' : a.bio) : '—';
+      const r = ringers[i];
+      const roles = (r.preferredRoles || []).join(', ') || 'Flex';
+      const meta = [r.sr ? `${r.sr} SR` : null, r.region].filter(Boolean).join(' · ');
+      const bio = r.bio ? (r.bio.length > 80 ? r.bio.slice(0, 77) + '...' : r.bio) : '—';
       embed.addFields({
-        name: `${a.displayName || 'Unknown'} — ${roles}`,
-        value: `${meta || '—'}\n${bio}\n[View Profile](${WEBSITE_URL}/profile/${a.uid})`,
+        name: `${r.displayName || 'Unknown'} — ${roles}`,
+        value: `${meta || '—'}\n${bio}\n[View Profile](${WEBSITE_URL}/profile/${r.uid})`,
         inline: false,
       });
     }
 
-    if (agents.length > 10) {
+    if (ringers.length > 10) {
       embed.setFooter({
-        text: `Showing 10 of ${agents.length} — Browse all on the website`,
+        text: `Showing 10 of ${ringers.length} — Browse all on the website`,
       });
     }
 
     const managerTeams = await getManagerTeams(interaction.user.id);
     const components = [];
-    if (managerTeams.length > 0 && agents.length > 0) {
-      const options = agents.slice(0, 25).map((a) => ({
-        label: `${(a.displayName || 'Unknown').substring(0, 80)}`,
-        value: a.id || a.uid,
-        description: (a.preferredRoles || []).join(', ') || 'Flex',
+
+    if (managerTeams.length > 0 && ringers.length > 0) {
+      const options = ringers.slice(0, 25).map((r) => ({
+        label: `${(r.displayName || 'Unknown').substring(0, 80)}`,
+        value: r.uid || r.id,
+        description: (r.preferredRoles || []).join(', ') || 'Flex',
       }));
+
       const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('invite_fa_select')
-        .setPlaceholder('Invite a player to your team...')
+        .setCustomId('invite_ringer_select')
+        .setPlaceholder('Invite a ringer to your team...')
         .addOptions(options);
       components.push(new ActionRowBuilder().addComponents(selectMenu));
     }
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
-    console.error('Error fetching free agents:', error);
+    console.error('Error fetching ringers:', error);
     await interaction.editReply({
-      content: `❌ Failed to load free agents: ${error.message}`,
+      content: `❌ Failed to load ringers: ${error.message}`,
       ephemeral: true,
     });
   }
 }
 
 /**
- * Handle invite_fa_select - show team selection
+ * Handle invite_ringer_select - show team selection
  */
-export async function handleInviteFaSelect(interaction) {
-  const agentUid = interaction.values?.[0];
-  if (!agentUid) return false;
+export async function handleInviteRingerSelect(interaction) {
+  const ringerUid = interaction.values?.[0];
+  if (!ringerUid) return false;
 
-  const db = getFirestore();
-  const { getManagerTeams, getUserByDiscordId } = await import('../utils/firebase-helpers.js');
+  const { getManagerTeams } = await import('../utils/firebase-helpers.js');
   const managerTeams = await getManagerTeams(interaction.user.id);
   if (managerTeams.length === 0) {
     await interaction.update({ content: '❌ No teams found.', components: [] });
@@ -128,11 +129,11 @@ export async function handleInviteFaSelect(interaction) {
     description: t.region || '',
   }));
   const select = new StringSelectMenuBuilder()
-    .setCustomId(`invite_fa_team_${agentUid}`)
+    .setCustomId(`invite_ringer_team_${ringerUid}`)
     .setPlaceholder('Select team to invite to...')
     .addOptions(options);
   await interaction.update({
-    content: 'Select a team to invite this player to:',
+    content: 'Select a team to invite this ringer to:',
     embeds: [],
     components: [new ActionRowBuilder().addComponents(select)],
   });
@@ -140,11 +141,11 @@ export async function handleInviteFaSelect(interaction) {
 }
 
 /**
- * Handle invite_fa_team_X - create lft_invite notification
+ * Handle invite_ringer_team_X - create lft_invite notification (same as LFT)
  */
-export async function handleInviteFaTeamSelect(interaction, customId) {
-  if (!customId.startsWith('invite_fa_team_')) return false;
-  const agentUid = customId.replace('invite_fa_team_', '');
+export async function handleInviteRingerTeamSelect(interaction, customId) {
+  if (!customId.startsWith('invite_ringer_team_')) return false;
+  const ringerUid = customId.replace('invite_ringer_team_', '');
   const teamId = interaction.values?.[0];
   if (!teamId) return false;
 
@@ -159,10 +160,10 @@ export async function handleInviteFaTeamSelect(interaction, customId) {
   }
 
   await db.collection('notifications').add({
-    userId: agentUid,
+    userId: ringerUid,
     type: 'lft_invite',
     title: 'Team Invitation',
-    message: `${team.name} has invited you to join their team!`,
+    message: `${team.name} has invited you to join their team as a ringer!`,
     actionData: {
       teamId: team.id,
       teamName: team.name,

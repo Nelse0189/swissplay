@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './AvailabilityTab.css';
 
 const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSchedule, canEditSettings }) => {
@@ -20,6 +20,9 @@ const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSche
   }, [team.schedule]);
 
   const [hoveredWarningSlot, setHoveredWarningSlot] = useState(null);
+  const dragStateRef = useRef(null);
+  const selectedSlotsRef = useRef(selectedTeamSlots);
+  selectedSlotsRef.current = selectedTeamSlots;
 
   const handleToggleHideCompWarning = () => {
     if (updateTeamSettings && canEditSettings) {
@@ -108,7 +111,7 @@ const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSche
       </div>
 
       <div className="team-availability-info" style={{ marginBottom: '1rem', fontFamily: "'Share Tech Mono', monospace", color: '#666', fontSize: '0.8rem' }}>
-        <p>SELECT NODES TO PROPOSE SCRIM TIMES. {!hideCompWarning && 'WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).'}</p>
+        <p>CLICK OR DRAG TO SELECT NODES FOR PROPOSED SCRIM TIMES. {!hideCompWarning && 'WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).'}</p>
         {isManager && canEditSettings && updateTeamSettings && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', cursor: 'pointer' }}>
             <input
@@ -151,9 +154,42 @@ const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSche
                     key={`${day}-${hour}`}
                     className={`grid-cell team-cell ${isSelected ? (showWarning ? 'warning' : 'active') : ''} ${!isManager ? 'disabled' : ''}`}
                     style={cellStyle}
-                    onClick={() => toggleTeamSlot(day, hour)}
+                    onMouseDown={() => {
+                      if (!isManager) return;
+                      const slot = `${day}-${hour}`;
+                      const selecting = !selectedTeamSlots.includes(slot);
+                      setSelectedTeamSlots(prev => {
+                        const next = selecting ? [...prev, slot] : prev.filter(s => s !== slot);
+                        selectedSlotsRef.current = next;
+                        return next;
+                      });
+                      dragStateRef.current = { selecting, painted: new Set([slot]) };
+                      const handleUp = () => {
+                        if (updateTeamSchedule && isManager) {
+                          const slots = selectedSlotsRef.current;
+                          updateTeamSchedule(slots.map(s => {
+                            const [d, h] = s.split('-');
+                            return { day: d, hour: parseInt(h, 10) };
+                          }));
+                        }
+                        dragStateRef.current = null;
+                        document.removeEventListener('mouseup', handleUp);
+                      };
+                      document.addEventListener('mouseup', handleUp);
+                    }}
                     onMouseEnter={() => {
-                      if (showWarning) {
+                      const state = dragStateRef.current;
+                      if (state) {
+                        if (state.painted.has(slot)) return;
+                        state.painted.add(slot);
+                        setSelectedTeamSlots(prev => {
+                          const next = state.selecting
+                            ? (prev.includes(slot) ? prev : [...prev, slot])
+                            : prev.filter(s => s !== slot);
+                          selectedSlotsRef.current = next;
+                          return next;
+                        });
+                      } else if (showWarning) {
                         setHoveredWarningSlot({ day, hour, missing: compStatus.missingMessage });
                       } else {
                         setHoveredWarningSlot(null);

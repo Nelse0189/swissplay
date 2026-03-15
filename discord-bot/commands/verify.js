@@ -439,6 +439,13 @@ export async function handleVerificationConfirm(interaction, verificationCode) {
         members: updatedMembers,
         managerDiscordIds: managerDiscordIds
       });
+
+      // Save discordId to users collection so new teams show up in /add-player immediately
+      await db.collection('users').doc(verificationData.userUid).set({
+        discordId: interaction.user.id,
+        discordUsername: interaction.user.username,
+        updatedAt: new Date()
+      }, { merge: true });
     }
     
     // Mark verification as confirmed

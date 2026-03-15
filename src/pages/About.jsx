@@ -19,6 +19,7 @@ const About = () => {
               <li><strong>Team Management</strong> — Create rosters, track player availability, and coordinate schedules</li>
               <li><strong>Tier Ratings</strong> — Get evaluated and find opponents at your skill level</li>
               <li><strong>Free Agents</strong> — Players looking for teams can list themselves for recruitment</li>
+              <li><strong>Ringers</strong> — Find substitute players when your team is short, or list yourself to fill in for teams needing a player</li>
             </ul>
           </section>
 

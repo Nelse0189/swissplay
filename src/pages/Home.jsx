@@ -5,6 +5,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import DigitalOverlay from '../components/DigitalOverlay';
 import './Home.css';
 
+const DISCORD_INVITE = 'https://discord.gg/rFUX24TeXc';
+
 const Home = () => {
   const [user, setUser] = useState(null);
 
@@ -28,12 +30,33 @@ const Home = () => {
             <Link to="/scrims" className="home-hero__btn home-hero__btn--primary">
               Find Scrims
             </Link>
+            <a
+              href={DISCORD_INVITE}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="home-hero__btn home-hero__btn--secondary"
+            >
+              Join Discord
+            </a>
             {!user && (
               <Link to="/auth" className="home-hero__btn home-hero__btn--secondary">
                 Sign In
               </Link>
             )}
           </div>
+        </div>
+        <div className="home-discord-section">
+          <p className="home-discord__intro">
+            Join our Discord to connect with the community, add the Swiss Play bot to your server for team management, and find scrims.
+          </p>
+          <a
+            href={DISCORD_INVITE}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="home-discord__btn"
+          >
+            Join Swiss Play Discord
+          </a>
         </div>
         <div className="home-features">
           <div className="home-feature">

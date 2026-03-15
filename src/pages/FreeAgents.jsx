@@ -16,10 +16,10 @@ import CustomDropdown from '../components/UI/CustomDropdown';
 import LftInviteModal from '../components/UI/LftInviteModal';
 import { useToast } from '../context/ToastContext';
 import { OW_RANK_DIVISIONS, OW_RANK_OPTIONS_FOR_DROPDOWN, getRankLabel, getRankValueForSr } from '../utils/overwatchRanks';
+import { REGION_FORM_OPTIONS, REGION_FILTER_BROWSE_OPTIONS, getRegionDisplay } from '../constants/regions';
 import './FreeAgents.css';
 
 const ROLES = ['Tank', 'DPS', 'Support', 'Flex'];
-const REGIONS = ['NA', 'EU', 'OCE', 'Asia', 'SA'];
 const OW_RANKS = OW_RANK_DIVISIONS; // alias for filter logic
 
 const FreeAgents = () => {
@@ -442,10 +442,7 @@ const FreeAgents = () => {
                     <div className="form-group">
                       <label>REGION</label>
                       <CustomDropdown
-                        options={[
-                          { value: '', label: 'Select region' },
-                          ...REGIONS.map((r) => ({ value: r, label: r })),
-                        ]}
+                        options={REGION_FORM_OPTIONS('Select region')}
                         value={formData.region}
                         onChange={(v) => setFormData({ ...formData, region: v })}
                         placeholder="Select region"
@@ -546,10 +543,7 @@ const FreeAgents = () => {
                 <div className="filter-group">
                   <label>Region</label>
                   <CustomDropdown
-                    options={[
-                      { value: '', label: 'All regions' },
-                      ...REGIONS.map((r) => ({ value: r, label: r })),
-                    ]}
+                    options={REGION_FILTER_BROWSE_OPTIONS}
                     value={filters.region}
                     onChange={(v) => setFilters({ ...filters, region: v })}
                     placeholder="All regions"
@@ -635,7 +629,7 @@ const FreeAgents = () => {
                               </span>
                             )}
                             {agent.sr && <span className="meta-tag sr">{getRankLabel(agent.sr)}</span>}
-                            {agent.region && <span className="meta-tag region">{agent.region}</span>}
+                            {agent.region && <span className="meta-tag region">{getRegionDisplay(agent.region)}</span>}
                           </div>
                         </div>
                       </div>

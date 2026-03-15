@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import LoadingState from '../components/UI/LoadingState';
+import { getRegionDisplay } from '../constants/regions';
 import './PublicTeamProfile.css';
 
 const getReliabilityTier = (score) => {
@@ -203,7 +204,7 @@ const PublicTeamProfile = () => {
               <div>
                 <h1>{teamData.name}</h1>
                 <div className="team-badges-header">
-                  {teamData.region && <span className="badge">{teamData.region}</span>}
+                  {teamData.region && <span className="badge">{getRegionDisplay(teamData.region) || teamData.region}</span>}
                   {teamData.faceitDiv && <span className="badge">{teamData.faceitDiv}</span>}
                   {teamData.tierRating && <span className="badge">Tier: {teamData.tierRating}</span>}
                   {avgSR > 0 && <span className="badge">Avg SR: {avgSR}</span>}

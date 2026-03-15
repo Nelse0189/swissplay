@@ -30,6 +30,13 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || isModerator();
     }
 
+    // Ringers (LFR): same as free agents
+    match /ringers/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isModerator();
+    }
+
     // Teams: anyone can read, authenticated users can create/update
     match /teams/{teamId} {
       allow read: if true;
@@ -82,6 +89,23 @@ service cloud.firestore {
     match /contactMessages/{messageId} {
       allow create: if true;
       allow read, update, delete: if false;
+    }
+
+    // Calendar Events: per-team events, same write rules as teams (authenticated users)
+    match /calendarEvents/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Discord User Settings (timezone etc) - bot writes via Admin SDK; allow read for clients
+    match /discordUserSettings/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Submit Review Sessions - Discord bot only (Admin SDK bypasses rules)
+    match /submitReviewSessions/{sessionId} {
+      allow read, write: if false;
     }
     
     // Default deny for anything else

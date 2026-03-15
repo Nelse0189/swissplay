@@ -1,12 +1,26 @@
-import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, REST, Routes, SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { config } from 'dotenv';
 import http from 'http';
 import { initializeFirebase, getFirestore } from './firebase/config.js';
 import { handleAvailabilityRequest, handleAvailabilityResponse, handleButtonAvailabilityResponse } from './commands/availability.js';
 import { handleListPlayers } from './commands/list.js';
-import { handleFindFreeAgentsSlash } from './commands/freeagents.js';
+import { handleFindFreeAgentsSlash, handleInviteFaSelect, handleInviteFaTeamSelect } from './commands/freeagents.js';
+import { handleFindRingersSlash, handleInviteRingerSelect, handleInviteRingerTeamSelect } from './commands/ringers.js';
+import { handleEventSummarySlash } from './commands/eventSummary.js';
+import { handleMyTimezoneSlash } from './commands/myTimezone.js';
+import { handleCreateTeamSlash } from './commands/createTeam.js';
+import { handleSendScrimRequestSlash, handleSendScrimSelectMenu } from './commands/sendScrimRequest.js';
+import { handleDropScrimSlash, handleDropScrimSelectMenu, handleDropScrimConfirm } from './commands/dropScrim.js';
+import { handleAddEventSlash, handleEditEventSlash, handleDeleteEventSlash, handleEditEventSelectMenu, handleDeleteEventSelectMenu, handleDeleteEventConfirm } from './commands/calendar.js';
+import { handleEditProfileSlash } from './commands/editProfile.js';
+import { handleTeamSettingsSlash } from './commands/teamSettings.js';
+import { handleSubmitReviewSlash, handleSubmitReviewSelect } from './commands/submitReview.js';
 import { parseScrimTimeCSV, isValidScrimTimeCSV } from './utils/scrim-parser.js';
 import { sendVerificationDM, sendVerificationDMByUsername, handleVerificationConfirm, handleVerificationDeny } from './commands/verify.js';
+import { setupCalendarSyncListener } from './services/calendarSync.js';
+import { setupCalendarReminderSystem } from './services/calendarReminders.js';
+import { setupNotificationListener } from './services/notificationListener.js';
+import { commands } from './commandDefinitions.js';
 
 config();
 
@@ -30,176 +44,6 @@ try {
   console.error('⚠️  Firebase initialization failed:', error.message);
   console.log('Continuing without Firebase (some features may not work)');
 }
-
-// Define slash commands
-const commands = [
-  new SlashCommandBuilder()
-    .setName('request-availability')
-    .setDescription('Request availability from specific players or all players')
-    .addStringOption(option =>
-      option.setName('period')
-        .setDescription('Specific time period (e.g., this weekend, March 15-20)')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('players')
-        .setDescription('Mention players (@player1 @player2) or type "all" for all players')
-        .setRequired(false)),
-  
-  new SlashCommandBuilder()
-    .setName('list-players')
-    .setDescription('List all players in your team with their Discord status'),
-  
-  new SlashCommandBuilder()
-    .setName('help')
-    .setDescription('Show help message with all available commands'),
-  
-  new SlashCommandBuilder()
-    .setName('verify-discord')
-    .setDescription('Verify and link your Discord account (use from web app)')
-    .addStringOption(option =>
-      option.setName('code')
-        .setDescription('Verification code from web app')
-        .setRequired(true)),
-  
-  new SlashCommandBuilder()
-    .setName('upload-scrim')
-    .setDescription('Upload a ScrimTime CSV log file')
-    .addAttachmentOption(option =>
-      option.setName('logfile')
-        .setDescription('The ScrimTime CSV or TXT file')
-        .setRequired(true)),
-  
-  new SlashCommandBuilder()
-    .setName('my-availability')
-    .setDescription('Set your availability for scrims (opens DM)'),
-  
-  new SlashCommandBuilder()
-    .setName('my-team')
-    .setDescription('View your team info and schedule (opens DM)'),
-  
-  new SlashCommandBuilder()
-    .setName('add-player')
-    .setDescription('Add a Discord server member to your team (Manager only)')
-    .addUserOption(option =>
-      option.setName('player')
-        .setDescription('The Discord user to add to your team')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('role')
-        .setDescription('The role(s) they play')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Tank', value: 'Tank' },
-          { name: 'DPS', value: 'DPS' },
-          { name: 'Support', value: 'Support' },
-          { name: 'Flex (All Roles)', value: 'Tank, DPS, Support' },
-          { name: 'Tank / DPS', value: 'Tank, DPS' },
-          { name: 'Tank / Support', value: 'Tank, Support' },
-          { name: 'DPS / Support', value: 'DPS, Support' }
-        )),
-  
-  new SlashCommandBuilder()
-    .setName('verify-sr')
-    .setDescription('Verify Overwatch Skill Rating using BattleTag')
-    .addStringOption(option =>
-      option.setName('battletag')
-        .setDescription('Your BattleTag (e.g., Player#1234 or Player-1234)')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('platform')
-        .setDescription('Platform (pc, xbl, psn)')
-        .setRequired(true)
-        .addChoices(
-          { name: 'PC', value: 'pc' },
-          { name: 'Xbox', value: 'xbl' },
-          { name: 'PlayStation', value: 'psn' }
-        ))
-    .addStringOption(option =>
-      option.setName('region')
-        .setDescription('Region (us, eu, kr, cn, global)')
-        .setRequired(true)
-        .addChoices(
-          { name: 'US', value: 'us' },
-          { name: 'EU', value: 'eu' },
-          { name: 'KR', value: 'kr' },
-          { name: 'CN', value: 'cn' },
-          { name: 'Global', value: 'global' }
-        )),
-
-  new SlashCommandBuilder()
-    .setName('remove-player')
-    .setDescription('Remove a player from your team (Manager only)')
-    .addUserOption(option =>
-      option.setName('player')
-        .setDescription('The player to remove')
-        .setRequired(true)),
-  
-  new SlashCommandBuilder()
-    .setName('schedule-scrim')
-    .setDescription('Schedule a scrim and poll team availability (Manager only)')
-    .addStringOption(option =>
-      option.setName('date')
-        .setDescription('Scrim date (e.g., 2024-03-15 or tomorrow)')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('time')
-        .setDescription('Scrim time (e.g., 19:00 or 7pm)')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('notes')
-        .setDescription('Optional notes about the scrim')
-        .setRequired(false)),
-  
-  new SlashCommandBuilder()
-    .setName('find-time')
-    .setDescription('Find best times based on team availability (Manager only)')
-    .addStringOption(option =>
-      option.setName('period')
-        .setDescription('Time period to analyze')
-        .setRequired(false)
-        .addChoices(
-          { name: 'Next 7 days', value: 'week' },
-          { name: 'Next 14 days', value: 'two-weeks' },
-          { name: 'This week only', value: 'this-week' }
-        )),
-  
-  new SlashCommandBuilder()
-    .setName('team-stats')
-    .setDescription('View team availability statistics and analytics (Manager only)'),
-  
-  new SlashCommandBuilder()
-    .setName('upcoming-scrims')
-    .setDescription('View all upcoming scheduled scrims for your team'),
-  
-  new SlashCommandBuilder()
-    .setName('find-free-agents')
-    .setDescription('Browse free agents looking for teams (Managers)')
-    .addStringOption(option =>
-      option.setName('role')
-        .setDescription('Filter by preferred role')
-        .setRequired(false)
-        .addChoices(
-          { name: 'Tank', value: 'Tank' },
-          { name: 'DPS', value: 'DPS' },
-          { name: 'Support', value: 'Support' },
-          { name: 'Flex', value: 'Flex' }
-        ))
-    .addStringOption(option =>
-      option.setName('region')
-        .setDescription('Filter by region')
-        .setRequired(false)
-        .addChoices(
-          { name: 'NA', value: 'NA' },
-          { name: 'EU', value: 'EU' },
-          { name: 'OCE', value: 'OCE' },
-          { name: 'Asia', value: 'Asia' },
-          { name: 'SA', value: 'SA' }
-        ))
-    .addIntegerOption(option =>
-      option.setName('min_sr')
-        .setDescription('Minimum skill rating')
-        .setRequired(false))
-].map(command => command.toJSON());
 
 // Register slash commands
 async function registerCommands() {
@@ -245,6 +89,15 @@ client.once('clientReady', async () => {
   
   // Set up reminder system (check every 5 minutes)
   setupScrimReminderSystem(client);
+
+  // Set up Firestore listener for calendar event sync to Discord Scheduled Events
+  setupCalendarSyncListener(client);
+
+  // Set up calendar event reminders (15m, 1h, 24h, 1 week before)
+  setupCalendarReminderSystem(client);
+
+  // Set up notification listener (DM users on lft_invite, etc.)
+  setupNotificationListener(client);
 });
 
 /**
@@ -468,6 +321,51 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
       
+      if (customId.startsWith('send_scrim_')) {
+        const handled = await handleSendScrimSelectMenu(interaction, customId);
+        if (handled) return;
+      }
+
+      if (customId.startsWith('drop_scrim_')) {
+        const handled = await handleDropScrimSelectMenu(interaction, customId);
+        if (handled) return;
+      }
+
+      if (customId.startsWith('edit_event_')) {
+        const handled = await handleEditEventSelectMenu(interaction, customId);
+        if (handled) return;
+      }
+
+      if (customId.startsWith('delete_event_')) {
+        const handled = await handleDeleteEventSelectMenu(interaction, customId);
+        if (handled) return;
+      }
+
+      if (customId === 'invite_fa_select') {
+        const handled = await handleInviteFaSelect(interaction);
+        if (handled) return;
+      }
+
+      if (customId.startsWith('invite_fa_team_')) {
+        const handled = await handleInviteFaTeamSelect(interaction, customId);
+        if (handled) return;
+      }
+
+      if (customId === 'invite_ringer_select') {
+        const handled = await handleInviteRingerSelect(interaction);
+        if (handled) return;
+      }
+
+      if (customId.startsWith('invite_ringer_team_')) {
+        const handled = await handleInviteRingerTeamSelect(interaction, customId);
+        if (handled) return;
+      }
+
+      if (customId.startsWith('submit_review_')) {
+        const handled = await handleSubmitReviewSelect(interaction, customId);
+        if (handled) return;
+      }
+
       if (customId.startsWith('schedule_scrim_team_')) {
         await interaction.update({ content: '⏳ Scheduling scrim...', components: [] });
         
@@ -536,6 +434,101 @@ client.on('interactionCreate', async (interaction) => {
     // Handle button interactions
     if (interaction.isButton()) {
       const customId = interaction.customId;
+
+      // Handle drop scrim confirm
+      if (customId.startsWith('drop_confirm_')) {
+        const handled = await handleDropScrimConfirm(interaction, customId);
+        if (handled) return;
+      }
+
+      // Handle drop scrim cancel
+      if (customId === 'drop_cancel') {
+        await interaction.update({ content: 'Cancelled.', components: [] });
+        return;
+      }
+
+      // Handle delete event cancel
+      if (customId === 'del_event_cancel') {
+        await interaction.update({ content: 'Cancelled.', components: [] });
+        return;
+      }
+
+      // Handle delete event confirm
+      if (customId.startsWith('del_event_confirm_')) {
+        const handled = await handleDeleteEventConfirm(interaction, customId);
+        if (handled) return;
+      }
+
+      // Handle LFT invite accept/decline
+      if (customId.startsWith('lft_accept_') || customId.startsWith('lft_decline_')) {
+        const parts = customId.split('_');
+        const action = parts[1]; // accept or decline
+        const notifId = parts.slice(2).join('_');
+        const db = getFirestore();
+        const { getUserByDiscordId } = await import('./utils/firebase-helpers.js');
+        try {
+          await interaction.deferUpdate();
+          const notifDoc = await db.collection('notifications').doc(notifId).get();
+          if (!notifDoc.exists) {
+            await interaction.editReply({ content: 'Notification no longer exists.', components: [] });
+            return;
+          }
+          const notif = notifDoc.data();
+          const userData = await getUserByDiscordId(interaction.user.id);
+          if (!userData || notif.userId !== userData.uid) {
+            await interaction.editReply({ content: 'Unauthorized.', components: [] });
+            return;
+          }
+          await db.collection('notifications').doc(notifId).update({ read: true });
+          const actionData = notif.actionData || {};
+          if (action === 'accept') {
+            const teamRef = db.collection('teams').doc(actionData.teamId);
+            const teamDoc = await teamRef.get();
+            if (teamDoc.exists) {
+              const team = teamDoc.data();
+              const existingMember = team.members?.find(m => m.uid === userData.uid);
+              if (!existingMember) {
+                const newMember = {
+                  uid: userData.uid,
+                  name: userData.displayName || userData.username || interaction.user.username,
+                  roles: ['Player'],
+                  availability: [],
+                  discordId: interaction.user.id,
+                  discordUsername: interaction.user.username,
+                };
+                const updatedMembers = [...(team.members || []), newMember];
+                const updatedMemberUids = [...(team.memberUids || []), userData.uid];
+                await teamRef.update({ members: updatedMembers, memberUids: updatedMemberUids });
+              }
+            }
+            await db.collection('notifications').add({
+              userId: actionData.managerId,
+              type: 'lft_invite_accepted',
+              title: 'Invite Accepted!',
+              message: `${userData.displayName || userData.username || 'Player'} has accepted your invite to ${actionData.teamName}.`,
+              actionData: { teamId: actionData.teamId },
+              read: false,
+              createdAt: new Date(),
+            });
+            await interaction.editReply({ content: '✅ You joined the team!', components: [] });
+          } else {
+            await db.collection('notifications').add({
+              userId: actionData.managerId,
+              type: 'lft_invite_declined',
+              title: 'Invite Declined',
+              message: `${userData.displayName || 'A player'} declined your invite to ${actionData.teamName}.`,
+              actionData: { teamId: actionData.teamId },
+              read: false,
+              createdAt: new Date(),
+            });
+            await interaction.editReply({ content: 'Invite declined.', components: [] });
+          }
+        } catch (err) {
+          console.error('LFT invite handler error:', err);
+          await interaction.editReply({ content: `❌ Error: ${err.message}`, components: [] });
+        }
+        return;
+      }
       
       // Handle scrim request DM response
       if (customId.startsWith('scrimreq_')) {
@@ -627,7 +620,37 @@ client.on('interactionCreate', async (interaction) => {
               
             await interaction.editReply({ embeds: [embed], components: [] });
             
-            // Optionally, we could notify the requesting team here if we wanted to
+            // Notify the requesting team's managers (scrim_response)
+            const fromTeamId = requestData.fromTeamId;
+            if (fromTeamId) {
+              try {
+                const fromTeamDoc = await db.collection('teams').doc(fromTeamId).get();
+                if (fromTeamDoc.exists) {
+                  const fromTeam = fromTeamDoc.data();
+                  const slotText = requestData.slot?.day && requestData.slot?.hour != null
+                    ? `${requestData.slot.day} at ${requestData.slot.hour}:00`
+                    : 'your requested slot';
+                  const message = `${requestData.toTeamName} has ${action} your scrim request for ${slotText}.`;
+                  for (const m of fromTeam.members || []) {
+                    if (m.roles?.includes('Manager') || m.roles?.includes('Owner')) {
+                      if (m.uid) {
+                        await db.collection('notifications').add({
+                          userId: m.uid,
+                          type: 'scrim_response',
+                          title: `Scrim Request ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+                          message,
+                          actionData: { teamId: fromTeamId, requestId },
+                          read: false,
+                          createdAt: new Date(),
+                        });
+                      }
+                    }
+                  }
+                }
+              } catch (notifErr) {
+                console.error('Failed to notify requesting team:', notifErr);
+              }
+            }
             
           } catch (error) {
             console.error('Error handling scrim request response:', error);
@@ -815,11 +838,63 @@ client.on('interactionCreate', async (interaction) => {
       case 'upcoming-scrims':
         await handleUpcomingScrimsSlash(interaction);
         break;
-      
+
+      case 'event-summary':
+        await handleEventSummarySlash(interaction);
+        break;
+
+      case 'my-timezone':
+        await handleMyTimezoneSlash(interaction);
+        break;
+
       case 'find-free-agents':
         await handleFindFreeAgentsSlash(interaction);
         break;
+
+      case 'find-ringers':
+        await handleFindRingersSlash(interaction);
+        break;
       
+      case 'create-team':
+        await handleCreateTeamSlash(interaction);
+        break;
+
+      case 'send-scrim-request':
+        await handleSendScrimRequestSlash(interaction);
+        break;
+
+      case 'drop-scrim':
+        await handleDropScrimSlash(interaction);
+        break;
+
+      case 'add-event':
+        await handleAddEventSlash(interaction);
+        break;
+
+      case 'edit-event':
+        await handleEditEventSlash(interaction);
+        break;
+
+      case 'delete-event':
+        await handleDeleteEventSlash(interaction);
+        break;
+
+      case 'edit-profile':
+        await handleEditProfileSlash(interaction);
+        break;
+
+      case 'team-settings':
+        await handleTeamSettingsSlash(interaction);
+        break;
+
+      case 'submit-review':
+        await handleSubmitReviewSlash(interaction);
+        break;
+      
+      case 'invite':
+        await handleInviteSlash(interaction);
+        break;
+
       default:
         await interaction.reply({ content: '❌ Unknown command.', ephemeral: true });
     }
@@ -2409,6 +2484,41 @@ async function handleVerifyDiscordSlash(interaction) {
   }
 }
 
+async function handleInviteSlash(interaction) {
+  const clientId = process.env.DISCORD_CLIENT_ID || '1445440806797185129';
+  // Permissions: View Channels, Send Messages, Embed Links, Read Message History, Add Reactions
+  const permissions = '84672';
+  const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=bot%20applications.commands`;
+
+  const embed = new EmbedBuilder()
+    .setTitle('🤖 Add Swiss Play Bot to Your Server')
+    .setDescription(
+      'Click the button below to add the Swiss Play bot to your own Discord server.\n\n' +
+      '**What you get:**\n' +
+      '• Team availability management\n' +
+      '• Scrim scheduling and polling\n' +
+      '• Player invites via Discord\n' +
+      '• Free agent discovery\n\n' +
+      '_You need Administrator or Manage Server permission to add the bot._'
+    )
+    .setColor(0x7289da)
+    .setFooter({ text: 'Create a team at swissplay.gg first, then add the bot!' });
+
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setLabel('Add Bot to My Server')
+        .setStyle(ButtonStyle.Link)
+        .setURL(inviteUrl)
+    );
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [row],
+    ephemeral: true
+  });
+}
+
 async function handleHelpSlash(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true }); // Must defer first - Firestore can take >3s
@@ -2433,8 +2543,20 @@ async function handleHelpSlash(interaction) {
         value: 'See all scheduled scrims and your responses.'
       },
       {
+        name: '`/event-summary`',
+        value: 'View upcoming calendar events for your team (next 7 days).'
+      },
+      {
+        name: '`/my-timezone`',
+        value: 'Set your timezone so event reminders show times correctly (e.g. America/New_York).'
+      },
+      {
         name: '`/help`',
         value: 'Show this help message'
+      },
+      {
+        name: '`/invite`',
+        value: 'Get a link to add the bot to your own Discord server'
       }
     )
     .setFooter({ text: 'All availability and team info is sent privately via DM.' });
