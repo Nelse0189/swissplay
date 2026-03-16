@@ -31,7 +31,7 @@
 .header-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: wrap;
   gap: 1rem;
 }
@@ -83,10 +83,17 @@
 
 .team-badges {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.badge {
+.team-badges .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  min-height: 2rem;
   background: rgba(var(--color-accent-rgb), 0.2);
   border: 1px solid rgba(var(--color-accent-rgb), 0.4);
   padding: 0.25rem 0.75rem;
@@ -94,6 +101,20 @@
   font-size: 0.9rem;
   color: var(--color-text);
   text-transform: uppercase;
+}
+
+/* Ensure region-display (globe + text) aligns with other badges */
+.team-badges .badge .region-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Fix SVG/globe vertical alignment inside badges */
+.team-badges .badge .region-display .region-globe,
+.team-badges .badge .region-display svg {
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 /* Updated Tab Content Container to be full width */

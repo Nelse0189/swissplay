@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "cross-env SKIP_DISCORD_DMS=1 node --watch index.js"
   },
   "keywords": ["discord", "bot", "team-management"],
   "author": "",
@@ -16,6 +16,9 @@
     "firebase-admin": "^12.0.0",
     "dotenv": "^16.4.5",
     "rrule": "^2.8.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   }
 }
 

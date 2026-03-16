@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../firebase/config';
 import { signOut } from 'firebase/auth';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import NavigationDropdown from './UI/NavigationDropdown';
 import InboxDropdown from './UI/InboxDropdown';
@@ -15,18 +15,68 @@ const Header = () => {
 
   useEffect(() => {
     if (user) {
-      loadUserTeams(user.uid);
+      loadUserTeams(user);
     } else {
       setUserTeams([]);
     }
   }, [user?.uid]);
 
-  const loadUserTeams = async (uid) => {
+  const handleTeamsChanged = () => {
+    if (user) loadUserTeams(user);
+  };
+
+  useEffect(() => {
+    window.addEventListener('teams-changed', handleTeamsChanged);
+    return () => window.removeEventListener('teams-changed', handleTeamsChanged);
+  }, [user?.uid]);
+
+  const loadUserTeams = async (userOrUid) => {
+    const uid = typeof userOrUid === 'string' ? userOrUid : userOrUid?.uid;
+    if (!uid) return;
     try {
       const teamsSnapshot = await getDocs(collection(db, 'teams'));
-      const teamsData = teamsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(t => t.members?.some(m => m.uid === uid));
+      let userDiscordId = null;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists() && userDoc.data().discordId) {
+          userDiscordId = userDoc.data().discordId;
+        }
+      } catch { /* ignore */ }
+      const userEmail = typeof userOrUid === 'object' && userOrUid?.email
+        ? userOrUid.email.toLowerCase()
+        : null;
+      const allTeams = teamsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const uidStr = String(uid);
+
+      const teamsData = allTeams.filter(t => {
+        if (t.members?.some(m => m.uid == uid || String(m.uid) === uidStr)) return true;
+        if (t.ownerId == uid || String(t.ownerId) === uidStr) return true;
+        if (t.memberUids?.some(id => id == uid || String(id) === uidStr)) return true;
+        if (userDiscordId && t.managerDiscordIds?.some(id => String(id) === String(userDiscordId))) return true;
+        if (userDiscordId && t.members?.some(m => String(m.discordId) === String(userDiscordId))) return true;
+        if (userEmail && t.members?.some(m => (m.email?.toLowerCase?.() === userEmail))) return true;
+        return false;
+      });
+
+      // Dev-only: debug why teams might not show
+      if (import.meta.env.DEV && allTeams.length > 0) {
+        console.group('[SwissPlay] Team visibility debug');
+        console.log('Your uid:', uid, '| Discord:', userDiscordId || '(not linked)', '| Email:', userEmail || '(none)');
+        console.log('Teams in DB:', allTeams.length, '| Teams you see:', teamsData.length);
+        allTeams.forEach(t => {
+          const passed = teamsData.some(x => x.id === t.id);
+          const ownerMatch = t.ownerId == uid || String(t.ownerId) === uidStr;
+          const memberMatch = t.members?.some(m => m.uid == uid || String(m.uid) === uidStr);
+          const memberUidsMatch = t.memberUids?.some(id => id == uid || String(id) === uidStr);
+          const discordMatch = userDiscordId && (t.managerDiscordIds?.some(id => String(id) === String(userDiscordId)) || t.members?.some(m => String(m.discordId) === String(userDiscordId)));
+          const emailMatch = userEmail && t.members?.some(m => (m.email?.toLowerCase?.() === userEmail));
+          if (!passed) {
+            console.log(`  ❌ "${t.name}" (${t.id}): ownerId=${t.ownerId} memberUids=[${(t.memberUids || []).join(',')}] | ownerMatch=${ownerMatch} memberMatch=${memberMatch} memberUidsMatch=${memberUidsMatch} discordMatch=${!!discordMatch} emailMatch=${!!emailMatch}`);
+          }
+        });
+        console.groupEnd();
+      }
+
       setUserTeams(teamsData);
     } catch (error) {
       console.error('Error loading user teams:', error);

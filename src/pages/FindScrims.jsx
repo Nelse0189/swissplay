@@ -5,6 +5,7 @@ import { db, auth } from '../firebase/config';
 import { useAuth } from '../context/AuthContext';
 import { rankToSr } from '../constants/overwatchRanks';
 import { REGION_FILTER_OPTIONS, getRegionDisplay } from '../constants/regions';
+import { SCHEDULE_TIMEZONE_FILTER_OPTIONS, getTimezoneAbbrev, getScheduleTimezoneDisplay } from '../constants/scheduleTimezones';
 import LoadingState from '../components/UI/LoadingState';
 import CustomDropdown from '../components/UI/CustomDropdown';
 import Modal from '../components/UI/Modal';
@@ -44,8 +45,8 @@ const getNextOccurrenceDate = (day, hour) => {
   return targetDate;
 };
 
-// Format date as "MM/DD/YY Day HH:00 EST"
-const formatSlotTime = (dayOrSlot, hour, createdAt) => {
+// Format date as "MM/DD/YY Day HH:00 TZ". teamOrTimezone: team object or IANA string for timezone.
+const formatSlotTime = (dayOrSlot, hour, createdAt, teamOrTimezone) => {
   let date;
   let day, slotHour;
   
@@ -90,16 +91,15 @@ const formatSlotTime = (dayOrSlot, hour, createdAt) => {
   const dayOfMonth = String(date.getDate()).padStart(2, '0');
   const year = String(date.getFullYear()).slice(-2);
   
-  // Determine if DST is active (EST vs EDT)
-  // DST in US typically runs from second Sunday in March to first Sunday in November
-  const yearNum = date.getFullYear();
-  const march = new Date(yearNum, 2, 1); // March 1
-  const november = new Date(yearNum, 10, 1); // November 1
-  const dstStart = new Date(yearNum, 2, 14 - march.getDay()); // Second Sunday in March
-  const dstEnd = new Date(yearNum, 10, 7 - november.getDay()); // First Sunday in November
-  
-  const isDST = date >= dstStart && date < dstEnd;
-  const timeZone = isDST ? 'EDT' : 'EST';
+  const iana = teamOrTimezone?.scheduleTimezone || (typeof teamOrTimezone === 'string' ? teamOrTimezone : null);
+  const timeZone = iana ? getTimezoneAbbrev(date, iana) : (() => {
+    const yearNum = date.getFullYear();
+    const march = new Date(yearNum, 2, 1);
+    const november = new Date(yearNum, 10, 1);
+    const dstStart = new Date(yearNum, 2, 14 - march.getDay());
+    const dstEnd = new Date(yearNum, 10, 7 - november.getDay());
+    return date >= dstStart && date < dstEnd ? 'EDT' : 'EST';
+  })();
   
   return `${month}/${dayOfMonth} ${day.substring(0, 3)} ${slotHour}:00 ${timeZone}`;
 };
@@ -171,6 +171,7 @@ const FindScrims = () => {
   const [divisionFilter, setDivisionFilter] = useState('All');
   const [dayFilter, setDayFilter] = useState('All');
   const [regionFilter, setRegionFilter] = useState('All');
+  const [timezoneFilter, setTimezoneFilter] = useState('All');
 
   const divisionOptions = [
     { value: 'All', label: 'All Divisions' },
@@ -213,6 +214,15 @@ const FindScrims = () => {
     }
   }, [authUser]);
 
+  // Refresh teams when a team is created (e.g. from Create Team page)
+  useEffect(() => {
+    const handler = () => {
+      const user = authUser ?? currentUser;
+      if (user) loadUserTeams(user);
+    };
+    window.addEventListener('teams-changed', handler);
+    return () => window.removeEventListener('teams-changed', handler);
+  }, [authUser?.uid, currentUser?.uid]);
 
   // Load reviews when selectedTeam changes
   useEffect(() => {
@@ -254,18 +264,15 @@ const FindScrims = () => {
 
       const teamsSnapshot = await getDocs(collection(db, 'teams'));
       const uid = user.uid;
+      const uidStr = String(uid);
       const teamsData = teamsSnapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(t => {
-          // Member has uid (web-created teams)
-          if (t.members?.some(m => m.uid === uid)) return true;
-          // User is team owner
-          if (t.ownerId === uid) return true;
-          // Team has memberUids array
-          if (t.memberUids?.includes(uid)) return true;
-          // Member has discordId and user has linked Discord (users collection)
-          if (userDiscordId && t.members?.some(m => m.discordId === userDiscordId)) return true;
-          // Member has matching email (e.g. added via website or /add-player)
+          if (t.members?.some(m => m.uid == uid || String(m.uid) === uidStr)) return true;
+          if (t.ownerId == uid || String(t.ownerId) === uidStr) return true;
+          if (t.memberUids?.some(id => id == uid || String(id) === uidStr)) return true;
+          if (userDiscordId && t.managerDiscordIds?.some(id => String(id) === String(userDiscordId))) return true;
+          if (userDiscordId && t.members?.some(m => String(m.discordId) === String(userDiscordId))) return true;
           const userEmail = user.email?.toLowerCase?.();
           if (userEmail && t.members?.some(m => (m.email?.toLowerCase?.() === userEmail))) return true;
           return false;
@@ -350,6 +357,11 @@ const FindScrims = () => {
 
       if (regionFilter !== 'All' && team.region !== regionFilter) {
         return false;
+      }
+
+      if (timezoneFilter !== 'All') {
+        const teamTz = team.scheduleTimezone || 'America/New_York';
+        if (teamTz !== timezoneFilter) return false;
       }
 
       if (dayFilter !== 'All') {
@@ -941,6 +953,14 @@ const FindScrims = () => {
                 />
               </div>
               <div className="form-group">
+                <label>FILTER BY TIMEZONE</label>
+                <CustomDropdown 
+                  options={SCHEDULE_TIMEZONE_FILTER_OPTIONS}
+                  value={timezoneFilter}
+                  onChange={setTimezoneFilter}
+                />
+              </div>
+              <div className="form-group">
                 <label>FILTER BY DAY</label>
                 <CustomDropdown 
                   options={dayOptions}
@@ -974,6 +994,9 @@ const FindScrims = () => {
                             <h3>{team.name}</h3>
                             <div className="team-card-meta">
                               <span>REGION: {getRegionDisplay(team.region) || team.region || 'N/A'}</span>
+                              {getScheduleTimezoneDisplay(team) && (
+                                <span>TZ: {getScheduleTimezoneDisplay(team)}</span>
+                              )}
                               <span>{typeof team.sr === 'number' ? `SR: ${team.sr}` : (team.sr || 'N/A')}</span>
                               <span className={`reliability-badge reliability-${getReliabilityTier(team.reliabilityScore ?? 100)}`} title="Team reliability: responds quickly, rarely drops scrims">
                                 RELIABILITY: {team.reliabilityScore ?? 100}
@@ -1053,7 +1076,7 @@ const FindScrims = () => {
                             
                             return (
                               <div key={idx} className="slot-item">
-                                <span className="slot-time">{formatSlotTime(slot.day, slot.hour)}</span>
+                                <span className="slot-time">{formatSlotTime(slot.day, slot.hour, null, team)}</span>
                                 {requestStatus ? (
                                   <span className={`status-badge status-${requestStatus}`}>
                                     {requestStatus.toUpperCase()}
@@ -1111,7 +1134,10 @@ const FindScrims = () => {
                     return (
                       <div key={request.id} className="request-card incoming">
                         <p><strong>{request.fromTeamName}</strong></p>
-                        <p className="request-time">{formatSlotTime(request.slot, null, request.createdAt)}</p>
+                        <p className="request-time">{formatSlotTime(request.slot, null, request.createdAt, (() => {
+                          const fromTeam = availableTeams.find(t => t.id === request.fromTeamId) || userTeams.find(t => t.id === request.fromTeamId);
+                          return fromTeam;
+                        })())}</p>
                         {request.status === 'pending' ? (
                           <div className="request-actions">
                             <button
@@ -1198,7 +1224,7 @@ const FindScrims = () => {
                     return (
                       <div key={request.id} className="request-card outgoing">
                         <p>VS <strong>{request.toTeamName}</strong></p>
-                        <p className="request-time">{formatSlotTime(request.slot, null, request.createdAt)}</p>
+                        <p className="request-time">{formatSlotTime(request.slot, null, request.createdAt, myTeam)}</p>
                         <p className={`status-text status-${request.status}`}>{request.status.toUpperCase()}</p>
                         {canCancel && (
                           <button

@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getScheduleTimezoneDisplay } from '../../constants/scheduleTimezones';
 import './AvailabilityTab.css';
+
+const formatHourAMPM = (h) => {
+  if (h === 0) return '12 AM';
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return '12 PM';
+  return `${h - 12} PM`;
+};
 
 const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSchedule, canEditSettings }) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const hours = Array.from({ length: 25 }, (_, i) => i);
+  // Hours ordered 6pm first: 18,19,...,23,0,1,...,17
+  const hours = [...Array.from({ length: 6 }, (_, i) => i + 18), ...Array.from({ length: 18 }, (_, i) => i)];
   
   const currentMember = team.members.find(m => m.uid === currentUser.uid);
   const isManager = currentMember?.roles?.includes('Manager') || currentMember?.roles?.includes('Owner');
   const hideCompWarning = team.hideCompWarning === true;
+  const scheduleCarryOver = team.scheduleCarryOver !== false; // default true
 
   const [selectedTeamSlots, setSelectedTeamSlots] = useState(() => {
     return (team.schedule || []).map(s => `${s.day}-${s.hour}`);
@@ -27,6 +37,12 @@ const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSche
   const handleToggleHideCompWarning = () => {
     if (updateTeamSettings && canEditSettings) {
       updateTeamSettings({ hideCompWarning: !hideCompWarning });
+    }
+  };
+
+  const handleToggleScheduleCarryOver = () => {
+    if (updateTeamSettings && canEditSettings) {
+      updateTeamSettings({ scheduleCarryOver: !scheduleCarryOver });
     }
   };
 
@@ -111,35 +127,46 @@ const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSche
       </div>
 
       <div className="team-availability-info" style={{ marginBottom: '1rem', fontFamily: "'Share Tech Mono', monospace", color: '#666', fontSize: '0.8rem' }}>
-        <p>CLICK OR DRAG TO SELECT NODES FOR PROPOSED SCRIM TIMES. {!hideCompWarning && 'WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).'}</p>
+        <p>CLICK OR DRAG TO SELECT NODES FOR PROPOSED SCRIM TIMES. Times are in your team&apos;s schedule timezone ({getScheduleTimezoneDisplay(team) || 'EST'}). {!hideCompWarning && 'WARNING (⚠️) INDICATES SELECTED SLOT CANNOT FULFILL STANDARD COMP (1 TANK, 2 DPS, 2 SUPPORT).'}</p>
         {isManager && canEditSettings && updateTeamSettings && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={hideCompWarning}
-              onChange={handleToggleHideCompWarning}
-              style={{ cursor: 'pointer' }}
-            />
-            <span>Hide comp warning (team does not track individual player availability)</span>
-          </label>
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={scheduleCarryOver}
+                onChange={handleToggleScheduleCarryOver}
+                style={{ cursor: 'pointer' }}
+              />
+              <span>Carry schedule to next week (Discord reminder sent when week rolls over)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={hideCompWarning}
+                onChange={handleToggleHideCompWarning}
+                style={{ cursor: 'pointer' }}
+              />
+              <span>Hide comp warning (team does not track individual player availability)</span>
+            </label>
+          </>
         )}
       </div>
 
       <div className="digital-grid-container" onMouseLeave={() => setHoveredWarningSlot(null)}>
         <div className="grid-time-header">
           <div className="corner-spacer"></div>
-          {hours.map(h => (
-            <div key={h} className="header-cell">
-              {h.toString().padStart(2, '0')}
+          {days.map(d => (
+            <div key={d} className="header-cell">
+              {d.substring(0, 3).toUpperCase()}
             </div>
           ))}
         </div>
         
-        {days.map(day => (
-          <div key={day} className="grid-row">
-            <div className="row-label">{day.substring(0, 3).toUpperCase()}</div>
+        {hours.map(hour => (
+          <div key={hour} className="grid-row">
+            <div className="row-label">{formatHourAMPM(hour)}</div>
             <div className="row-cells">
-              {hours.map(hour => {
+              {days.map(day => {
                 const slot = `${day}-${hour}`;
                 const availableMembers = team.members.filter(m => m.availability && m.availability.includes(slot));
                 const isSelected = selectedTeamSlots.includes(slot);
@@ -223,7 +250,7 @@ const AvailabilityTab = ({ currentUser, team, updateTeamSettings, updateTeamSche
         }}>
           <span style={{ fontSize: '1.2rem' }}>⚠️</span>
           <div>
-            <strong>{hoveredWarningSlot.day} {hoveredWarningSlot.hour.toString().padStart(2, '0')}:00</strong>
+            <strong>{hoveredWarningSlot.day} {formatHourAMPM(hoveredWarningSlot.hour)}</strong>
             <br />
             Cannot fulfill standard comp. Missing: {hoveredWarningSlot.missing}
           </div>

@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 import { EmbedBuilder } from 'discord.js';
-import { getManagerTeams, getPlayerByDiscordId } from '../lib/firebase-helpers.js';
+import { getManagerTeams, getPlayerByDiscordId, ensureTeamLinkedToGuild } from '../lib/firebase-helpers.js';
 import * as discordApi from '../discordApi.js';
 
 function getFirestore() {
@@ -41,6 +41,8 @@ export async function handleRemovePlayerSlash(interaction) {
     await interaction.followUp({ content: `❌ ${playerUser.username} is not on any of your teams.`, ephemeral: true });
     return;
   }
+  const guildId = interaction.guild?.id;
+  if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
   const updatedMembers = team.members.filter(m => m.discordId !== playerUser.id);
   await db.collection('teams').doc(team.id).update({ members: updatedMembers });
   await interaction.followUp({
@@ -58,6 +60,8 @@ export async function handleListPlayersSlash(interaction) {
     return;
   }
   const team = managerTeams[0];
+  const guildId = interaction.guild?.id;
+  if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
   const players = team.members?.filter(m => m.roles?.includes('Player') || m.roles?.includes('Coach')) || [];
   const lines = players.map(m => `• ${m.discordUsername || m.name || 'Unknown'} ${m.discordId ? '✅ Linked' : '❌ Not linked'}`);
   const embed = new EmbedBuilder()
@@ -107,6 +111,8 @@ export async function handleTeamStatsSlash(interaction) {
     return;
   }
   const team = managerTeams[0];
+  const guildId = interaction.guild?.id;
+  if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
   const withAvail = team.members?.filter(m => m.availabilityText && m.availabilityText !== 'Not set').length || 0;
   const total = team.members?.length || 1;
   const pct = Math.round((withAvail / total) * 100);

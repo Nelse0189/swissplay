@@ -24,13 +24,34 @@ export function setupCalendarSyncListener(client) {
       const changes = snapshot.docChanges();
       for (const change of changes) {
         const docId = change.doc.id;
-        const data = change.doc.data();
-        const discordGuildId = data.discordGuildId;
+        let data = change.doc.data();
+        let discordGuildId = data.discordGuildId;
+
+        // Fallback: if event has no discordGuildId, get it from the team (handles events created before team was linked)
+        if (!discordGuildId && data.teamId) {
+          try {
+            const teamDoc = await db.collection('teams').doc(data.teamId).get();
+            const teamGuildId = teamDoc.exists ? teamDoc.data()?.discordGuildId : null;
+            if (teamGuildId) {
+              await db.collection('calendarEvents').doc(docId).update({
+                discordGuildId: teamGuildId,
+                updatedAt: new Date()
+              });
+              data = { ...data, discordGuildId: teamGuildId };
+              discordGuildId = teamGuildId;
+            }
+          } catch (e) {
+            console.warn(`Calendar sync: could not resolve discordGuildId for event ${docId}:`, e.message);
+          }
+        }
 
         if (!discordGuildId) continue;
 
         const guild = client.guilds.cache.get(discordGuildId);
-        if (!guild) continue;
+        if (!guild) {
+          console.warn(`Calendar sync: bot not in guild ${discordGuildId} for event ${docId}`);
+          continue;
+        }
 
         try {
           if (change.type === 'added') {

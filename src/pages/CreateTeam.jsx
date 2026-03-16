@@ -122,13 +122,15 @@ const CreateTeam = () => {
         memberUids: [user.uid],
         managerDiscordIds: creatorDiscordId ? [creatorDiscordId] : [],
         schedule: [],
+        scheduleTimezone: 'America/New_York',
         reliabilityScore: 100,
         createdAt: new Date()
       };
 
       const docRef = await addDoc(collection(db, 'teams'), teamData);
       toast.success(`Team "${formData.name}" created successfully!`);
-      navigate('/teams/overwatch');
+      window.dispatchEvent(new CustomEvent('teams-changed'));
+      navigate(`/teams/overwatch?team=${docRef.id}`);
     } catch (error) {
       console.error('Error creating team:', error);
       toast.error('Failed to create team. Please try again.');

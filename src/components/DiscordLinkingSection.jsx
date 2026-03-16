@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import Modal from './UI/Modal';
-import DiscordLinkingInstructions from './DiscordLinkingInstructions';
 import { useToast } from '../context/ToastContext';
 import './DiscordLinkingSection.css';
+
+const SWISSPLAY_DISCORD = 'https://discord.gg/rFUX24TeXc';
 
 /**
  * Reusable Discord linking section for Profile and Edit Profile.
@@ -15,7 +15,7 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
   const [discordUsername, setDiscordUsername] = useState('');
   const [isLinking, setIsLinking] = useState(false);
   const [linkedDiscordId, setLinkedDiscordId] = useState(null);
-  const [discordHelpModalCode, setDiscordHelpModalCode] = useState(null); // null = closed, string = open with this code
+  const [pendingVerificationCode, setPendingVerificationCode] = useState(null);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -57,7 +57,7 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
         dmSent: false
       });
 
-      setDiscordHelpModalCode(code);
+      setPendingVerificationCode(code);
       setDiscordUsername('');
     } catch (error) {
       console.error('Error creating verification:', error);
@@ -66,8 +66,6 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
       setIsLinking(false);
     }
   };
-
-  const openHelpModal = () => setDiscordHelpModalCode('help');
 
   if (linkedDiscordId) {
     return (
@@ -82,17 +80,21 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
     <div className="discord-linking-section">
       <div className="discord-linking-header">
         {showHeading && <h3 className="discord-linking-title">DISCORD ACCOUNT</h3>}
-        <button
-          type="button"
-          onClick={openHelpModal}
-          title="How to link Discord"
-          aria-label="How to link Discord"
-          className="discord-help-btn"
-        >
-          ?
-        </button>
       </div>
       <p className="discord-linking-desc">Link your Discord account to enable team features and bot commands.</p>
+      <p className="discord-linking-instructions">
+        <a href={SWISSPLAY_DISCORD} target="_blank" rel="noopener noreferrer" className="discord-link">
+          Join the Swissplay Discord
+        </a>{' '}
+        first, then enter your Discord username below. The bot will send you a DM to confirm.
+      </p>
+      {pendingVerificationCode && (
+        <div className="discord-verification-pending">
+          <p>Check your Discord DMs for a verification message. If you didn&apos;t receive one, run{' '}
+            <code>/verify-discord code:{pendingVerificationCode}</code> in the Swissplay Discord.
+          </p>
+        </div>
+      )}
       <div className="form-group">
         <input
           type="text"
@@ -102,7 +104,7 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
           className="custom-input"
           disabled={isLinking}
         />
-        <p className="form-hint">Enter your Discord username (without #). You'll receive a verification DM.</p>
+        <p className="form-hint">Enter your Discord username (without #).</p>
       </div>
       <button
         type="button"
@@ -112,15 +114,6 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
       >
         {isLinking ? 'LINKING...' : 'LINK DISCORD ACCOUNT'}
       </button>
-
-      <Modal
-        isOpen={discordHelpModalCode !== null}
-        onClose={() => setDiscordHelpModalCode(null)}
-        title="How to Link Your Discord"
-        type="info"
-      >
-        <DiscordLinkingInstructions verificationCode={discordHelpModalCode === 'help' ? undefined : discordHelpModalCode} />
-      </Modal>
     </div>
   );
 };

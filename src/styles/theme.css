@@ -293,5 +293,39 @@ input.custom-input.input-error:focus {
   font-weight: 500;
 }
 
+/* Calendar event form modal: white background, needs dark text (avoids white-on-white in dark theme) */
+.calendar-event-form-modal,
+.calendar-event-form-modal h1,
+.calendar-event-form-modal h2,
+.calendar-event-form-modal h3,
+.calendar-event-form-modal h4,
+.calendar-event-form-modal h5,
+.calendar-event-form-modal h6,
+.calendar-event-form-modal p,
+.calendar-event-form-modal span,
+.calendar-event-form-modal div,
+.calendar-event-form-modal label {
+  color: #1a1a1a !important;
+}
+.calendar-event-form-modal input.custom-input,
+.calendar-event-form-modal textarea.custom-input {
+  color: #1a1a1a !important;
+  background-color: #f8f9fa !important;
+  border-color: #dee2e6 !important;
+}
+.calendar-event-form-modal input::placeholder,
+.calendar-event-form-modal textarea::placeholder {
+  color: #6c757d !important;
+}
+.calendar-event-form-modal .custom-dropdown .dropdown-header,
+.calendar-event-form-modal .custom-dropdown .selected-value {
+  color: #1a1a1a !important;
+  background-color: #f8f9fa !important;
+  border-color: #dee2e6 !important;
+}
+.calendar-event-form-modal .form-actions .save-btn {
+  color: #fff !important;
+}
+
 
 

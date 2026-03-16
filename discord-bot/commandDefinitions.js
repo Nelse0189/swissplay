@@ -1,6 +1,44 @@
 import { SlashCommandBuilder } from 'discord.js';
 
 /**
+ * Generate date choices for the next 14 days (used for schedule-scrim).
+ * Labels: "Today", "Tomorrow", or "Weekday Mon DD".
+ */
+function getScheduleScrimDateChoices() {
+  const choices = [];
+  const now = new Date();
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const ymd = d.toISOString().split('T')[0];
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `${dayNames[d.getDay()]} ${monthNames[d.getMonth()]} ${d.getDate()}`;
+    choices.push({ name: label, value: ymd });
+  }
+  return choices;
+}
+
+/**
+ * Time choices for scrims: 6:00 PM to 11:30 PM in 30-minute increments.
+ * Values are HH:mm (24h) for parseFlexibleTime compatibility.
+ */
+const SCHEDULE_SCRIM_TIME_CHOICES = [
+  { name: '6:00 PM', value: '18:00' },
+  { name: '6:30 PM', value: '18:30' },
+  { name: '7:00 PM', value: '19:00' },
+  { name: '7:30 PM', value: '19:30' },
+  { name: '8:00 PM', value: '20:00' },
+  { name: '8:30 PM', value: '20:30' },
+  { name: '9:00 PM', value: '21:00' },
+  { name: '9:30 PM', value: '21:30' },
+  { name: '10:00 PM', value: '22:00' },
+  { name: '10:30 PM', value: '22:30' },
+  { name: '11:00 PM', value: '23:00' },
+  { name: '11:30 PM', value: '23:30' },
+];
+
+/**
  * Slash command definitions. Shared by index.js (bot) and register-commands.js (one-time registration).
  * When using Firebase Functions only, run: node register-commands.js
  */
@@ -101,12 +139,14 @@ export const commands = [
     .setDescription('Schedule a scrim and poll team availability (Manager only)')
     .addStringOption(option =>
       option.setName('date')
-        .setDescription('Scrim date (e.g., 2024-03-15 or tomorrow)')
-        .setRequired(true))
+        .setDescription('Select the scrim date')
+        .setRequired(true)
+        .addChoices(...getScheduleScrimDateChoices()))
     .addStringOption(option =>
       option.setName('time')
-        .setDescription('Scrim time (e.g., 19:00 or 7pm)')
-        .setRequired(true))
+        .setDescription('Select the scrim time (6pm onwards)')
+        .setRequired(true)
+        .addChoices(...SCHEDULE_SCRIM_TIME_CHOICES))
     .addStringOption(option =>
       option.setName('notes')
         .setDescription('Optional notes about the scrim')
@@ -271,17 +311,6 @@ export const commands = [
         .setDescription('Event title')
         .setRequired(true))
     .addStringOption(option =>
-      option.setName('type')
-        .setDescription('Event type')
-        .setRequired(false)
-        .addChoices(
-          { name: 'Scrim', value: 'scrim' },
-          { name: 'Practice', value: 'practice' },
-          { name: 'Tournament', value: 'tournament' },
-          { name: 'Meetup', value: 'meetup' },
-          { name: 'Custom', value: 'custom' }
-        ))
-    .addStringOption(option =>
       option.setName('date')
         .setDescription('Date (YYYY-MM-DD)')
         .setRequired(true))
@@ -293,6 +322,17 @@ export const commands = [
       option.setName('end-time')
         .setDescription('End time (HH:mm, 24h)')
         .setRequired(true))
+    .addStringOption(option =>
+      option.setName('type')
+        .setDescription('Event type')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Scrim', value: 'scrim' },
+          { name: 'Practice', value: 'practice' },
+          { name: 'Tournament', value: 'tournament' },
+          { name: 'Meetup', value: 'meetup' },
+          { name: 'Custom', value: 'custom' }
+        ))
     .addStringOption(option =>
       option.setName('recurrence')
         .setDescription('Recurrence')
@@ -355,6 +395,17 @@ export const commands = [
       option.setName('skill-rating')
         .setDescription('Skill rating (SR)')
         .setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('schedule-carryover')
+    .setDescription('Toggle whether team schedule carries over to next week (Manager only)')
+    .addStringOption(option =>
+      option.setName('enabled')
+        .setDescription('Carry schedule to next week? (On = keep + Discord reminder; Off = clear each week)')
+        .setRequired(true)
+        .addChoices(
+          { name: 'On (default) - keep schedule, get weekly reminder', value: 'on' },
+          { name: 'Off - clear schedule each week', value: 'off' }
+        )),
   new SlashCommandBuilder()
     .setName('team-settings')
     .setDescription('Update team settings (Manager only)')

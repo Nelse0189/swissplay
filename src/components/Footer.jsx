@@ -8,6 +8,8 @@ const Footer = () => {
         <div className="footer-links">
           <Link to="/about" className="contact-link">About Us</Link>
           <span className="footer-separator">|</span>
+          <Link to="/faq" className="contact-link">FAQ</Link>
+          <span className="footer-separator">|</span>
           <Link to="/contact" className="contact-link">Contact Us</Link>
         </div>
         <div className="footer-socials">

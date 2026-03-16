@@ -107,7 +107,7 @@
 
 .grid-time-header {
   display: grid;
-  grid-template-columns: 50px repeat(25, 1fr);
+  grid-template-columns: 50px repeat(7, 1fr);
   margin-bottom: 0.5rem;
 }
 
@@ -145,7 +145,7 @@
 .row-cells {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(25, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 }
 

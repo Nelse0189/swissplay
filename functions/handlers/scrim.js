@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { getManagerTeams } from '../lib/firebase-helpers.js';
+import { getManagerTeams, ensureTeamLinkedToGuild } from '../lib/firebase-helpers.js';
 import { parseScrimTimeCSV, isValidScrimTimeCSV } from '../lib/scrim-parser.js';
 import * as discordApi from '../discordApi.js';
 
@@ -41,6 +41,14 @@ function parseFlexibleTime(timeStr) {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
+function parseScrimDateTime(dateStr, timeStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = (timeStr || '19:00').split(':').map(n => parseInt(n, 10) || 0);
+  const start = new Date(year, month - 1, day, hour || 19, minute || 0, 0, 0);
+  const end = new Date(start.getTime() + 90 * 60 * 1000);
+  return { start, end };
+}
+
 async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
   const pollRef = await db.collection('scrimPolls').add({
     teamId: team.id,
@@ -55,6 +63,26 @@ async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
     status: 'active'
   });
   const pollId = pollRef.id;
+
+  if (team.discordGuildId) {
+    try {
+      const { start, end } = parseScrimDateTime(date, time);
+      const event = await discordApi.createScheduledEvent(team.discordGuildId, {
+        name: `⚔️ Scrim – ${team.name}`,
+        description: notes ? `Scrim for ${team.name}\n\n${notes}` : `Scrim for ${team.name}. Check your DMs for the availability poll.`,
+        startTime: start,
+        endTime: end,
+        location: team.name
+      });
+      await db.collection('scrimPolls').doc(pollId).update({
+        discordEventId: event.id,
+        updatedAt: new Date()
+      });
+    } catch (e) {
+      console.warn('Could not create Discord Scheduled Event (need Manage Events?):', e.message);
+    }
+  }
+
   const members = team.members?.filter(m => m.discordId) || [];
   if (members.length === 0) {
     await discordApi.sendDM(managerUser.id, {
@@ -88,13 +116,17 @@ async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
     }
   }
   try {
+    const summaryEmbed = new EmbedBuilder()
+      .setTitle('✅ Scrim Poll Sent')
+      .setDescription(`Sent availability poll to ${successCount}/${members.length} team members`)
+      .addFields({ name: 'Date', value: date }, { name: 'Time', value: time }, { name: 'Poll ID', value: pollId })
+      .setColor(0x00ff00)
+      .setFooter({ text: 'You\'ll receive DMs as players respond.' });
+    if (team.discordGuildId) {
+      summaryEmbed.setDescription(summaryEmbed.data.description + '\n\n📅 **Discord event created** – check your server\'s Events tab!');
+    }
     await discordApi.sendDM(managerUser.id, {
-      embeds: [discordApi.embedToApi(new EmbedBuilder()
-        .setTitle('✅ Scrim Poll Sent')
-        .setDescription(`Sent availability poll to ${successCount}/${members.length} team members`)
-        .addFields({ name: 'Date', value: date }, { name: 'Time', value: time }, { name: 'Poll ID', value: pollId })
-        .setColor(0x00ff00)
-        .setFooter({ text: 'You\'ll receive DMs as players respond.' }))]
+      embeds: [discordApi.embedToApi(summaryEmbed)]
     });
   } catch (e) {
     console.log('Could not DM manager:', e.message);
@@ -165,6 +197,8 @@ export async function handleScheduleScrimSlash(interaction) {
     return;
   }
   if (managerTeams.length === 1) {
+    const guildId = interaction.guild?.id;
+    if (guildId) await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
     await scheduleScrimForTeam(db, managerTeams[0], scrimDate, scrimTime, notes, interaction.user);
     await interaction.followUp({
       content: `✅ Scrim scheduled for **${scrimDate}** at **${scrimTime}**!\n\nPolling your team members via DM...`,
@@ -215,6 +249,8 @@ export async function handleScheduleScrimTeamSelect(interaction, sessionCode, se
     return;
   }
   const team = { id: teamDoc.id, ...teamDoc.data() };
+  const guildId = interaction.guild?.id;
+  if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
   await scheduleScrimForTeam(db, team, session.date, session.time, session.notes || '', interaction.user);
   await sessionRef.delete().catch(() => {});
   await interaction.followUp({

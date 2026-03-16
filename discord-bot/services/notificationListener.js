@@ -6,7 +6,7 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 import { getFirestore } from '../firebase/config.js';
 const WEBSITE_URL = process.env.WEBSITE_URL || 'https://solaris-cd166.web.app';
 
-export function setupNotificationListener(client) {
+export function setupNotificationListener(client, skipDms = false) {
   try {
     const db = getFirestore();
     if (!db) {
@@ -38,6 +38,11 @@ export function setupNotificationListener(client) {
         const userData = userDoc.data();
         const discordId = userData.discordId;
         if (!discordId) continue;
+
+        if (skipDms) {
+          console.log(`[SKIP_DMS] Would send LFT invite DM to ${discordId} for notification ${notifId}`);
+          continue;
+        }
 
         setTimeout(async () => {
           try {

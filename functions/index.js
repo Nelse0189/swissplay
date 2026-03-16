@@ -16,7 +16,7 @@ import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder,
 
 import { createInteractionAdapter } from './interactionAdapter.js';
 import * as discordApi from './discordApi.js';
-import { getManagerTeams, getPlayerByDiscordId } from './lib/firebase-helpers.js';
+import { getManagerTeams, getPlayerByDiscordId, ensureTeamLinkedToGuild } from './lib/firebase-helpers.js';
 
 admin.initializeApp();
 
@@ -105,6 +105,7 @@ async function handleAddPlayerSlash(interaction) {
     const isManagerTeam = managerTeams.some(t => t.id === playerExistingTeam.id);
     
     if (isManagerTeam) {
+      await ensureTeamLinkedToGuild(db, playerExistingTeam.id, guildId);
       const existingMemberIndex = playerExistingTeam.members.findIndex(m => m.discordId === playerUser.id);
       const member = playerExistingTeam.members[existingMemberIndex];
       const playerRoles = roleStr ? roleStr.split(',').map(r => r.trim()) : [];
@@ -125,10 +126,11 @@ async function handleAddPlayerSlash(interaction) {
         playerRoles: playerRoles.length > 0 ? playerRoles : (member.playerRoles || [])
       };
       
+      await ensureTeamLinkedToGuild(db, playerExistingTeam.id, guildId);
+      await ensureTeamLinkedToGuild(db, playerExistingTeam.id, guildId);
       await db.collection('teams').doc(playerExistingTeam.id).update({
         members: updatedMembers
       });
-      
       await interaction.followUp({
         content: `✅ Updated ${playerUser.username} on **${playerExistingTeam.name}**!\n\nThey can now use \`/my-availability\` and \`/my-team\` to see their team info.`,
         ephemeral: true
@@ -144,6 +146,7 @@ async function handleAddPlayerSlash(interaction) {
     }
   }
   if (managerTeams.length === 1) {
+    await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
     await addPlayerToTeam(db, managerTeams[0], playerUser, roleStr);
     await interaction.followUp({
       content: `✅ Added ${playerUser.username} to **${managerTeams[0].name}** as a Player!\n\nThey can now use \`/my-availability\` and \`/my-team\` to see their team info.`,
@@ -212,6 +215,8 @@ async function handleAddPlayerTeamSelect(interaction, sessionCode) {
     return;
   }
   const team = { id: teamDoc.id, ...teamDoc.data() };
+  const guildId = interaction.guild?.id;
+  if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
   const playerUser = { id: session.playerId, username: session.playerUsername };
   
   const existingMemberIndex = team.members.findIndex(m => m.discordId === playerUser.id);
@@ -344,7 +349,12 @@ async function handleVerifySrSlash(interaction) {
 // --- Handler: help ---
 async function handleHelpSlash(interaction) {
   const db = getFirestore();
-  const isManager = (await getManagerTeams(db, interaction.user.id)).length > 0;
+  const managerTeams = await getManagerTeams(db, interaction.user.id);
+  const isManager = managerTeams.length > 0;
+  const guildId = interaction.guild?.id;
+  if (isManager && guildId && managerTeams.length === 1) {
+    await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
+  }
   const playerEmbed = new EmbedBuilder()
     .setTitle('🤖 SwissPlay Bot - Player Commands')
     .setDescription('Commands available to all players:')
@@ -505,6 +515,10 @@ async function routeInteraction(interaction) {
       case 'upload-scrim':
         const { handleUploadScrimSlash } = await import('./handlers/scrim.js');
         await handleUploadScrimSlash(interaction);
+        break;
+      case 'schedule-carryover':
+        const { handleScheduleCarryOverSlash } = await import('./handlers/scheduleCarryOver.js');
+        await handleScheduleCarryOverSlash(interaction);
         break;
       default:
         await interaction.reply({ content: '❌ Unknown command.', ephemeral: true });
@@ -761,6 +775,55 @@ async function sendScrimReminder(db, poll, timeframe, pollDoc) {
   else if (timeframe === '1 hour') await pollDoc.ref.update({ reminder1hSent: true });
 }
 
+// --- Scheduled: weekly schedule carryover reminders (Mondays 00:10 UTC) ---
+export const scheduleCarryOverReminders = onSchedule(
+  { schedule: '10 0 * * 1', region: 'us-central1' }, // Every Monday at 00:10 UTC
+  async () => {
+    const db = admin.firestore();
+    const { EmbedBuilder } = await import('discord.js');
+    const teamsSnapshot = await db.collection('teams').get();
+
+    for (const teamDoc of teamsSnapshot.docs) {
+      const team = { id: teamDoc.id, ...teamDoc.data() };
+      const schedule = team.schedule || [];
+      const scheduleCarryOver = team.scheduleCarryOver !== false;
+
+      if (scheduleCarryOver === false) {
+        // Clear schedule at week boundary
+        if (schedule.length > 0) {
+          await db.collection('teams').doc(team.id).update({ schedule: [] });
+        }
+        continue;
+      }
+
+      if (schedule.length === 0) continue;
+
+      const managers = (team.members || []).filter(
+        m => m.discordId && m.roles && (m.roles.includes('Manager') || m.roles.includes('Owner'))
+      );
+
+      const slotSummary = schedule.slice(0, 5).map(s => `${s.day} ${(s.hour || 0).toString().padStart(2, '0')}:00`).join(', ');
+      const more = schedule.length > 5 ? ` (+${schedule.length - 5} more)` : '';
+
+      const embed = new EmbedBuilder()
+        .setTitle('📅 Weekly Schedule Reminder')
+        .setDescription(`**${team.name || 'Your team'}** schedule is the same as last week. Change if needed.`)
+        .addFields({ name: 'Current slots', value: slotSummary + more, inline: false })
+        .setColor(0x5865F2)
+        .setFooter({ text: 'Update at Team Management → Availability, or uncheck "Carry schedule to next week" to clear each week.' })
+        .setTimestamp();
+
+      for (const manager of managers) {
+        try {
+          await discordApi.sendDM(manager.discordId, { embeds: [discordApi.embedToApi(embed)] });
+        } catch (e) {
+          console.log('Could not send schedule reminder to manager:', manager.discordId, e.message);
+        }
+      }
+    }
+  }
+);
+
 // --- HTTP Handler ---
 export const discordInteractions = onRequest(
   { region: 'us-central1', minInstances: 1 },
@@ -837,6 +900,12 @@ export const discordInteractions = onRequest(
     };
     
     const interaction = createInteractionAdapter(body, sendResponse);
+
+    // Defer immediately for slash commands and buttons - Discord requires response within 3 seconds.
+    // Cold starts and dynamic imports can exceed that; deferring first prevents "stuck on thinking".
+    if (body.type === 2 || body.type === 3) {
+      await interaction.deferReply({ ephemeral: true });
+    }
     
     try {
       console.log('Routing interaction:', body.data?.name || body.data?.custom_id);

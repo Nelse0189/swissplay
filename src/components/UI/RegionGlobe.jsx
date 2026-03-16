@@ -83,7 +83,7 @@ const RegionGlobe = ({ region, size = 20, className = '' }) => {
       height={s}
       viewBox="0 0 200 200"
       className={`region-globe ${className}`}
-      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
+      style={{ display: 'block', flexShrink: 0, alignSelf: 'center' }}
       aria-hidden
     >
       <GlobeBase />

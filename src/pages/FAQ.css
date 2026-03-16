@@ -1,0 +1,87 @@
+.faq-page {
+  min-height: calc(100vh - 70px);
+  position: relative;
+}
+
+.faq-page .content-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 70px);
+}
+
+.faq-content {
+  position: relative;
+  z-index: 2;
+  padding: 4rem 4rem;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 90%;
+}
+
+.faq-content h1 {
+  font-size: 3rem;
+  font-weight: 400;
+  color: var(--color-text, #ffffff);
+  font-family: 'Share Tech Mono', monospace;
+  margin: 0 0 2rem 0;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  padding-bottom: 1rem;
+}
+
+.faq-intro {
+  font-size: 1.2rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin-bottom: 2.5rem;
+  line-height: 1.8;
+}
+
+.faq-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.faq-link:hover {
+  text-decoration: underline;
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.faq-item {
+  padding: 1.5rem;
+  background: var(--color-background-card, rgba(30, 20, 50, 0.6));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.faq-question {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.1rem;
+  color: var(--color-text, #ffffff);
+  margin: 0 0 0.75rem 0;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.faq-answer {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0;
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .faq-content {
+    padding: 2rem 1.5rem;
+  }
+
+  .faq-content h1 {
+    font-size: 2rem;
+  }
+}

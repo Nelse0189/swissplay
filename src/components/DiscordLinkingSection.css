@@ -59,6 +59,43 @@
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
   color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.discord-linking-instructions {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
   margin-bottom: 1rem;
   line-height: 1.6;
+}
+
+.discord-linking-instructions .discord-link {
+  color: #7289da;
+  text-decoration: underline;
+}
+
+.discord-linking-instructions .discord-link:hover {
+  color: #8b9ee8;
+}
+
+.discord-verification-pending {
+  padding: 1rem;
+  background: rgba(114, 137, 218, 0.15);
+  border: 1px solid rgba(114, 137, 218, 0.4);
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.discord-verification-pending p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.discord-verification-pending code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
 }

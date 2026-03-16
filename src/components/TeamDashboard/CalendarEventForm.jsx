@@ -11,8 +11,7 @@ import { format } from 'date-fns';
 
 const EVENT_TYPES = [
   { value: 'scrim', label: 'Scrim' },
-  { value: 'practice', label: 'Practice' },
-  { value: 'tournament', label: 'Tournament' },
+  { value: 'game', label: 'Game' },
   { value: 'meetup', label: 'Meetup' },
   { value: 'custom', label: 'Custom' }
 ];
@@ -44,8 +43,7 @@ const COLOR_EMOJI_OPTIONS = [
 
 const EVENT_TYPE_DEFAULT_EMOJI = {
   scrim: '⚔️',
-  practice: '🎯',
-  tournament: '🏆',
+  game: '🎮',
   meetup: '👋',
   custom: '📌'
 };

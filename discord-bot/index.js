@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, ChannelType, REST, Routes, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, GuildScheduledEventEntityType, GuildScheduledEventPrivacyLevel } from 'discord.js';
 import { config } from 'dotenv';
 import http from 'http';
 import { initializeFirebase, getFirestore } from './firebase/config.js';
@@ -14,6 +14,7 @@ import { handleDropScrimSlash, handleDropScrimSelectMenu, handleDropScrimConfirm
 import { handleAddEventSlash, handleEditEventSlash, handleDeleteEventSlash, handleEditEventSelectMenu, handleDeleteEventSelectMenu, handleDeleteEventConfirm } from './commands/calendar.js';
 import { handleEditProfileSlash } from './commands/editProfile.js';
 import { handleTeamSettingsSlash } from './commands/teamSettings.js';
+import { handleScheduleCarryOverSlash } from './commands/scheduleCarryOver.js';
 import { handleSubmitReviewSlash, handleSubmitReviewSelect } from './commands/submitReview.js';
 import { parseScrimTimeCSV, isValidScrimTimeCSV } from './utils/scrim-parser.js';
 import { sendVerificationDM, sendVerificationDMByUsername, handleVerificationConfirm, handleVerificationDeny } from './commands/verify.js';
@@ -21,8 +22,11 @@ import { setupCalendarSyncListener } from './services/calendarSync.js';
 import { setupCalendarReminderSystem } from './services/calendarReminders.js';
 import { setupNotificationListener } from './services/notificationListener.js';
 import { commands } from './commandDefinitions.js';
+import { ensureTeamLinkedToGuild } from './utils/firebase-helpers.js';
 
 config();
+
+const SKIP_DISCORD_DMS = process.env.SKIP_DISCORD_DMS === '1' || process.env.SKIP_DISCORD_DMS === 'true';
 
 const client = new Client({
   intents: [
@@ -82,28 +86,28 @@ client.once('clientReady', async () => {
   await registerCommands();
   
   // Set up Firestore listener for automatic Discord verification DMs
-  setupVerificationListener(client);
+  setupVerificationListener(client, SKIP_DISCORD_DMS);
   
   // Set up Firestore listener for new scrim requests
-  setupScrimRequestListener(client);
+  setupScrimRequestListener(client, SKIP_DISCORD_DMS);
   
   // Set up reminder system (check every 5 minutes)
-  setupScrimReminderSystem(client);
+  setupScrimReminderSystem(client, SKIP_DISCORD_DMS);
 
   // Set up Firestore listener for calendar event sync to Discord Scheduled Events
   setupCalendarSyncListener(client);
 
   // Set up calendar event reminders (15m, 1h, 24h, 1 week before)
-  setupCalendarReminderSystem(client);
+  setupCalendarReminderSystem(client, SKIP_DISCORD_DMS);
 
   // Set up notification listener (DM users on lft_invite, etc.)
-  setupNotificationListener(client);
+  setupNotificationListener(client, SKIP_DISCORD_DMS);
 });
 
 /**
  * Set up Firestore listener to automatically send verification DMs when new verifications are created
  */
-function setupVerificationListener(client) {
+function setupVerificationListener(client, skipDms = false) {
   try {
     const db = getFirestore();
     if (!db) {
@@ -138,6 +142,10 @@ function setupVerificationListener(client) {
                     const manager = team.members?.find(m => m.uid === verificationData.userUid);
                     
                     if (manager?.discordId) {
+                      if (skipDms) {
+                        console.log(`[SKIP_DMS] Would send verification DM to ${manager.discordId}`);
+                        return;
+                      }
                       // Manager already has Discord linked, send verification DM
                       await sendVerificationDM(
                         client,
@@ -179,6 +187,10 @@ function setupVerificationListener(client) {
             const isInvite = verificationData.isInvite === true;
             console.log(`📨 New ${isInvite ? 'invite' : 'verification'} request detected: ${verificationCode} for ${verificationData.discordUsername}`);
             
+            if (skipDms) {
+              console.log(`[SKIP_DMS] Would send verification DM to ${verificationData.discordUsername}`);
+              return;
+            }
             // Small delay to ensure document is fully written
             setTimeout(async () => {
               try {
@@ -265,6 +277,8 @@ client.on('interactionCreate', async (interaction) => {
           }
           
           const team = { id: teamDoc.id, ...teamDoc.data() };
+          const guildId = interaction.guild?.id;
+          if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
           const playerUser = await interaction.client.users.fetch(session.playerId);
           
           const existingMemberIndex = team.members.findIndex(m => m.discordId === playerUser.id);
@@ -395,6 +409,8 @@ client.on('interactionCreate', async (interaction) => {
           }
           
           const team = { id: teamDoc.id, ...teamDoc.data() };
+          const guildId = interaction.guild?.id;
+          if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
           
           await scheduleScrimForTeam(
             db,
@@ -885,6 +901,10 @@ client.on('interactionCreate', async (interaction) => {
 
       case 'team-settings':
         await handleTeamSettingsSlash(interaction);
+        break;
+
+      case 'schedule-carryover':
+        await handleScheduleCarryOverSlash(interaction);
         break;
 
       case 'submit-review':
@@ -1405,6 +1425,9 @@ async function handleRemovePlayerSlash(interaction) {
       return;
     }
     
+    const guildId = interaction.guild?.id;
+    if (guildId) await ensureTeamLinkedToGuild(db, playerTeam.id, guildId);
+    
     // Prevent removing the last owner
     const player = playerTeam.members.find(m => m.discordId === playerUser.id);
     if (player?.roles?.includes('Owner')) {
@@ -1417,7 +1440,7 @@ async function handleRemovePlayerSlash(interaction) {
         return;
       }
     }
-    
+
     // Remove player
     const updatedMembers = playerTeam.members.filter(m => m.discordId !== playerUser.id);
     
@@ -1518,6 +1541,8 @@ async function handleScheduleScrimSlash(interaction) {
     }
     
     // Single team - schedule directly
+    const guildId = interaction.guild?.id;
+    if (guildId) await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
     await scheduleScrimForTeam(db, interaction.client, managerTeams[0], scrimDate, scrimTime, notes, interaction.user);
     
     await interaction.followUp({
@@ -1556,6 +1581,8 @@ async function handleFindTimeSlash(interaction) {
     
     // Use first team (or we could add team picker)
     const team = managerTeams[0];
+    const guildId = interaction.guild?.id;
+    if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
     
     // Analyze availability
     const bestTimes = analyzeBestTimes(team, period);
@@ -1598,12 +1625,37 @@ async function handleFindTimeSlash(interaction) {
 
 async function getManagerTeams(db, discordId) {
   try {
-    // Use optimized query for teams where this Discord ID is in managerDiscordIds
-    const snapshot = await db.collection('teams')
-      .where('managerDiscordIds', 'array-contains', discordId)
+    const teamMap = new Map();
+    const discordIdStr = String(discordId);
+
+    // 1. Teams where this Discord ID is in managerDiscordIds
+    const byManagerDiscord = await db.collection('teams')
+      .where('managerDiscordIds', 'array-contains', discordIdStr)
       .get();
-    
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    byManagerDiscord.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
+
+    // 2. Teams where user is owner (lookup Firebase UID from users by discordId)
+    let usersSnapshot = await db.collection('users').where('discordId', '==', discordIdStr).limit(1).get();
+    if (usersSnapshot.empty && discordId !== discordIdStr) {
+      usersSnapshot = await db.collection('users').where('discordId', '==', discordId).limit(1).get();
+    }
+    if (!usersSnapshot.empty) {
+      const uid = usersSnapshot.docs[0].id;
+      const byOwner = await db.collection('teams').where('ownerId', '==', uid).get();
+      for (const d of byOwner.docs) {
+        const team = { id: d.id, ...d.data() };
+        teamMap.set(d.id, team);
+        // Backfill managerDiscordIds so future lookups are fast
+        const mids = team.managerDiscordIds || [];
+        if (!mids.some(id => String(id) === discordIdStr)) {
+          db.collection('teams').doc(d.id).update({
+            managerDiscordIds: [...mids, discordIdStr]
+          }).catch(() => {});
+        }
+      }
+    }
+
+    return Array.from(teamMap.values());
   } catch (error) {
     console.error('Error getting manager teams:', error);
     return [];
@@ -1670,7 +1722,36 @@ async function scheduleScrimForTeam(db, client, team, date, time, notes, manager
   });
   
   const pollId = pollRef.id;
-  
+
+  // Create Discord Scheduled Event (appears in server's Events tab) if team has linked server
+  if (team.discordGuildId) {
+    try {
+      const guild = client.guilds.cache.get(team.discordGuildId);
+      if (guild) {
+        const [y, m, d] = date.split('-').map(Number);
+        const [hr, min] = (time || '19:00').split(':').map(n => parseInt(n, 10) || 0);
+        const startTime = new Date(y, (m || 1) - 1, d || 1, hr || 19, min || 0, 0, 0);
+        const endTime = new Date(startTime.getTime() + 90 * 60 * 1000);
+        const scheduledEvent = await guild.scheduledEvents.create({
+          name: `⚔️ Scrim – ${team.name}`.substring(0, 100),
+          description: (notes ? `Scrim for ${team.name}\n\n${notes}` : `Scrim for ${team.name}. Check your DMs for the availability poll.`).substring(0, 1000),
+          scheduledStartTime: startTime,
+          scheduledEndTime: endTime,
+          entityType: GuildScheduledEventEntityType.External,
+          privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+          entityMetadata: { location: team.name.substring(0, 100) }
+        });
+        await db.collection('scrimPolls').doc(pollId).update({
+          discordEventId: scheduledEvent.id,
+          updatedAt: new Date()
+        });
+        console.log(`✅ Created Discord Scheduled Event: ${scheduledEvent.name} (${scheduledEvent.id})`);
+      }
+    } catch (error) {
+      console.warn('Could not create Discord Scheduled Event (need Manage Events?):', error.message);
+    }
+  }
+
   // Send DM to each team member
   const members = team.members.filter(m => m.discordId);
   let successCount = 0;
@@ -1848,7 +1929,7 @@ function getPeriodDescription(period) {
 /**
  * Set up Firestore listener to notify managers of new scrim requests
  */
-function setupScrimRequestListener(client) {
+function setupScrimRequestListener(client, skipDms = false) {
   try {
     const db = getFirestore();
     if (!db) {
@@ -1869,7 +1950,10 @@ function setupScrimRequestListener(client) {
           
           if (requestData.status === 'pending' && !requestData.discordDMSent) {
             console.log(`📨 New scrim request detected: ${requestId} from ${requestData.fromTeamName} to ${requestData.toTeamName}`);
-            
+            if (skipDms) {
+              console.log(`[SKIP_DMS] Would send scrim request DM to managers of ${requestData.toTeamName}`);
+              continue;
+            }
             setTimeout(async () => {
               try {
                 // Find target team to get manager
@@ -1897,6 +1981,11 @@ function setupScrimRequestListener(client) {
                     
                     for (const discordId of managerDiscordIds) {
                       try {
+                        if (skipDms) {
+                          console.log(`[SKIP_DMS] Would send scrim request DM to ${discordId}`);
+                          sentCount++;
+                          continue;
+                        }
                         const user = await client.users.fetch(discordId);
                         if (user) {
                           const embed = new EmbedBuilder()
@@ -1966,25 +2055,25 @@ function setupScrimRequestListener(client) {
   }
 }
 
-function setupScrimReminderSystem(client) {
+function setupScrimReminderSystem(client, skipDms = false) {
   console.log('⏰ Setting up scrim reminder system...');
   
   // Check for upcoming scrims every 5 minutes
   setInterval(async () => {
     try {
-      await checkAndSendScrimReminders(client);
+      await checkAndSendScrimReminders(client, skipDms);
     } catch (error) {
       console.error('Error in scrim reminder system:', error);
     }
   }, 5 * 60 * 1000); // 5 minutes
   
   // Also run immediately
-  setTimeout(() => checkAndSendScrimReminders(client), 10000);
+  setTimeout(() => checkAndSendScrimReminders(client, skipDms), 10000);
   
   console.log('✅ Scrim reminder system active');
 }
 
-async function checkAndSendScrimReminders(client) {
+async function checkAndSendScrimReminders(client, skipDms = false) {
   const db = getFirestore();
   const now = new Date();
   
@@ -2007,12 +2096,12 @@ async function checkAndSendScrimReminders(client) {
       if (poll.status === 'active') {
         // Send 24-hour reminder
         if (hoursUntil <= 24 && hoursUntil > 23 && !poll.reminder24hSent) {
-          await sendScrimReminder(client, db, poll, '24 hours', pollDoc);
+          await sendScrimReminder(client, db, poll, '24 hours', pollDoc, skipDms);
         }
         
         // Send 1-hour reminder
         if (hoursUntil <= 1 && hoursUntil > 0.5 && !poll.reminder1hSent) {
-          await sendScrimReminder(client, db, poll, '1 hour', pollDoc);
+          await sendScrimReminder(client, db, poll, '1 hour', pollDoc, skipDms);
         }
         
         // Prompt for outcome 2 hours after scrim
@@ -2021,7 +2110,7 @@ async function checkAndSendScrimReminders(client) {
             status: 'awaiting_outcome',
             lastOutcomeReminderSentAt: now
           });
-          await promptManagersForOutcome(client, db, poll);
+          await promptManagersForOutcome(client, db, poll, skipDms);
         }
       } else if (poll.status === 'awaiting_outcome') {
         // Remind every 24 hours until outcome is provided
@@ -2029,7 +2118,7 @@ async function checkAndSendScrimReminders(client) {
         const hoursSinceLastReminder = (now - lastReminder) / (1000 * 60 * 60);
         
         if (hoursSinceLastReminder >= 24) {
-          await promptManagersForOutcome(client, db, poll);
+          await promptManagersForOutcome(client, db, poll, skipDms);
           await pollDoc.ref.update({ lastOutcomeReminderSentAt: now });
         }
       }
@@ -2039,7 +2128,8 @@ async function checkAndSendScrimReminders(client) {
   }
 }
 
-async function promptManagersForOutcome(client, db, poll) {
+async function promptManagersForOutcome(client, db, poll, skipDms = false) {
+  if (skipDms) return;
   const teamDoc = await db.collection('teams').doc(poll.teamId).get();
   if (!teamDoc.exists) return;
   const team = teamDoc.data();
@@ -2078,7 +2168,8 @@ async function promptManagersForOutcome(client, db, poll) {
   }
 }
 
-async function sendScrimReminder(client, db, poll, timeframe, pollDoc) {
+async function sendScrimReminder(client, db, poll, timeframe, pollDoc, skipDms = false) {
+  if (skipDms) return;
   const teamDoc = await db.collection('teams').doc(poll.teamId).get();
   if (!teamDoc.exists) return;
   
@@ -2365,6 +2456,13 @@ async function handleAvailabilityRequestSlash(interaction) {
 async function handleListPlayersSlash(interaction) {
   try {
     await interaction.deferReply(); // Defer immediately to prevent timeout
+
+    const db = getFirestore();
+    const managerTeams = await getManagerTeams(db, interaction.user.id);
+    const guildId = interaction.guild?.id;
+    if (managerTeams.length > 0 && guildId) {
+      await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
+    }
     
     const fakeMessage = {
       author: interaction.user,
@@ -2857,6 +2955,8 @@ async function handleTeamStatsSlash(interaction) {
     }
     
     const team = managerTeams[0]; // Use first team
+    const guildId = interaction.guild?.id;
+    if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
     
     // Calculate availability stats
     const totalMembers = team.members.length;

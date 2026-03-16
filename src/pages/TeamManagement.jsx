@@ -47,7 +47,7 @@ const TeamManagement = () => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
       if (user) {
-        loadUserTeams(user.uid);
+        loadUserTeams(user);
       } else {
         setUserTeams([]);
         setSelectedTeamId(null);
@@ -56,6 +56,12 @@ const TeamManagement = () => {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const handler = () => { if (currentUser) loadUserTeams(currentUser); };
+    window.addEventListener('teams-changed', handler);
+    return () => window.removeEventListener('teams-changed', handler);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     if (userTeams.length > 0 && searchParams.get('team')) {
@@ -77,13 +83,35 @@ const TeamManagement = () => {
     }
   };
 
-  const loadUserTeams = async (uid) => {
+  const loadUserTeams = async (uidOrUser) => {
+    const uid = typeof uidOrUser === 'string' ? uidOrUser : uidOrUser?.uid;
+    if (!uid) return;
     try {
+      let userDiscordId = null;
+      let userEmail = null;
+      if (typeof uidOrUser === 'object' && uidOrUser) {
+        userEmail = uidOrUser.email?.toLowerCase?.() || null;
+        try {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          if (userDoc.exists() && userDoc.data().discordId) {
+            userDiscordId = userDoc.data().discordId;
+          }
+        } catch { /* ignore */ }
+      }
       const teamsRef = collection(db, 'teams');
       const snapshot = await getDocs(teamsRef);
+      const uidStr = String(uid);
       const teams = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(t => t.members?.some(m => m.uid === uid));
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => {
+          if (t.members?.some(m => m.uid == uid || String(m.uid) === uidStr)) return true;
+          if (t.ownerId == uid || String(t.ownerId) === uidStr) return true;
+          if (t.memberUids?.some(id => id == uid || String(id) === uidStr)) return true;
+          if (userDiscordId && t.managerDiscordIds?.some(id => String(id) === String(userDiscordId))) return true;
+          if (userDiscordId && t.members?.some(m => String(m.discordId) === String(userDiscordId))) return true;
+          if (userEmail && t.members?.some(m => (m.email?.toLowerCase?.() === userEmail))) return true;
+          return false;
+        });
 
       setUserTeams(teams);
       if (teams.length > 0) {
@@ -149,6 +177,7 @@ const TeamManagement = () => {
       const newTeam = { id: docRef.id, ...teamData };
       setUserTeams(prev => [...prev, newTeam]);
       setSelectedTeamId(docRef.id);
+      window.dispatchEvent(new CustomEvent('teams-changed'));
     } catch (error) {
       console.error("Error creating team:", error);
       toast.error("Failed to create team");

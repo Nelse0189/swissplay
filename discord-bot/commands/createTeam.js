@@ -72,6 +72,7 @@ export async function handleCreateTeamSlash(interaction) {
       memberUids: [userData.uid],
       managerDiscordIds: [interaction.user.id],
       schedule: [],
+      scheduleTimezone: 'America/New_York',
       reliabilityScore: 100,
       createdAt: new Date()
     };

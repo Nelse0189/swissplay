@@ -12,23 +12,23 @@ const { rrulestr } = require('rrule');
 
 const REMINDER_WINDOW_MINUTES = 6;
 
-export function setupCalendarReminderSystem(client) {
+export function setupCalendarReminderSystem(client, skipDms = false) {
   console.log('⏰ Setting up calendar event reminder system...');
 
   setInterval(async () => {
     try {
-      await checkAndSendCalendarReminders(client);
+      await checkAndSendCalendarReminders(client, skipDms);
     } catch (error) {
       console.error('Error in calendar reminder system:', error);
     }
   }, 5 * 60 * 1000);
 
-  setTimeout(() => checkAndSendCalendarReminders(client), 15000);
+  setTimeout(() => checkAndSendCalendarReminders(client, skipDms), 15000);
 
   console.log('✅ Calendar reminder system active');
 }
 
-async function checkAndSendCalendarReminders(client) {
+async function checkAndSendCalendarReminders(client, skipDms = false) {
   const db = getFirestore();
   if (!db) return;
 
@@ -76,7 +76,7 @@ async function checkAndSendCalendarReminders(client) {
         const windowEnd = new Date(occurrenceStart.getTime() - minsMs + REMINDER_WINDOW_MINUTES * 60 * 1000);
 
         if (now >= windowStart && now <= windowEnd && !sentForOccurrence[mins]) {
-          await sendCalendarReminder(client, db, event, doc.ref, occurrenceStart, mins);
+          await sendCalendarReminder(client, db, event, doc.ref, occurrenceStart, mins, skipDms);
         }
       }
     }
@@ -85,7 +85,8 @@ async function checkAndSendCalendarReminders(client) {
   }
 }
 
-async function sendCalendarReminder(client, db, event, docRef, occurrenceStart, reminderMins) {
+async function sendCalendarReminder(client, db, event, docRef, occurrenceStart, reminderMins, skipDms = false) {
+  if (skipDms) return;
   const teamDoc = await db.collection('teams').doc(event.teamId).get();
   if (!teamDoc.exists) return;
 

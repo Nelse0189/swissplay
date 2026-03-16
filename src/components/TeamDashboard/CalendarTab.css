@@ -224,7 +224,7 @@
   color: #ffffff;
 }
 
-/* Calendar Event Form Modal */
+/* Calendar Event Form Modal - explicit light theme to avoid white-on-white in dark mode */
 .calendar-event-form-backdrop {
   position: fixed;
   inset: 0;
@@ -243,6 +243,61 @@
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  color: #1a1a1a;
+}
+
+/* Override theme variables so all child elements use dark text on white */
+.calendar-event-form-modal,
+.calendar-event-form-modal * {
+  color: #1a1a1a !important;
+}
+
+.calendar-event-form-modal .form-group label,
+.calendar-event-form-modal .reminder-checkbox,
+.calendar-event-form-modal .reminder-checkbox span {
+  color: #1a1a1a !important;
+}
+
+.calendar-event-form-modal input.custom-input,
+.calendar-event-form-modal textarea.custom-input,
+.calendar-event-form-modal input.custom-input::placeholder,
+.calendar-event-form-modal textarea.custom-input::placeholder {
+  color: #1a1a1a !important;
+  background-color: #f8f9fa !important;
+  border-color: #dee2e6 !important;
+}
+
+.calendar-event-form-modal input.custom-input::placeholder,
+.calendar-event-form-modal textarea.custom-input::placeholder {
+  color: #6c757d !important;
+}
+
+.calendar-event-form-modal .custom-dropdown .dropdown-header,
+.calendar-event-form-modal .custom-dropdown .selected-value {
+  color: #1a1a1a !important;
+  background-color: #f8f9fa !important;
+  border-color: #dee2e6 !important;
+}
+
+.calendar-event-form-modal .add-cover-btn,
+.calendar-event-form-modal .remove-cover-btn {
+  color: #495057 !important;
+}
+
+.calendar-event-form-modal .add-cover-btn:hover:not(:disabled),
+.calendar-event-form-modal .remove-cover-btn:hover {
+  color: #1a1a1a !important;
+}
+
+/* Keep buttons readable - save has dark bg, delete has red text */
+.calendar-event-form-modal .form-actions .save-btn {
+  color: #fff !important;
+}
+.calendar-event-form-modal .form-actions .btn-delete {
+  color: #c00 !important;
+}
+.calendar-event-form-modal .form-actions .btn-delete:hover {
+  color: #fff !important;
 }
 
 .calendar-event-form-header {

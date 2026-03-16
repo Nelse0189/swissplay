@@ -73,7 +73,7 @@ export async function interactionEditReply(applicationId, token, payload) {
   });
 }
 
-/** Convert Discord.js ActionRow/Button to API format */
+/** Convert Discord.js ActionRow/Button to API format (for Link buttons, use custom_id: undefined and url) */
 export function componentsToApi(rows) {
   if (!rows?.length) return undefined;
   return rows.map(row => {

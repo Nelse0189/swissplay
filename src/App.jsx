@@ -21,6 +21,7 @@ import TierRating from './pages/TierRating';
 import Revaluation from './pages/Revaluation';
 import Help from './pages/Help';
 import Contact from './pages/Contact';
+import FAQ from './pages/FAQ';
 import JoinTeam from './pages/JoinTeam';
 import CreateTeam from './pages/CreateTeam';
 import FreeAgents from './pages/FreeAgents';
@@ -125,6 +126,7 @@ function App() {
                 <Route path="/teams/:teamId" element={<PublicTeamProfile />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/faq" element={<FAQ />} />
                 <Route path="/teams/join" element={<JoinTeam />} />
                 <Route path="/teams/create" element={<CreateTeam />} />
                 <Route path="/free-agents" element={<FreeAgents />} />

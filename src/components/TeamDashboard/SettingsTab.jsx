@@ -8,8 +8,9 @@ import ImageCropper from '../UI/ImageCropper';
 import Modal from '../UI/Modal';
 import { OVERWATCH_RANK_OPTIONS } from '../../constants/overwatchRanks';
 import { REGION_OPTIONS } from '../../constants/regions';
+import { SCHEDULE_TIMEZONE_OPTIONS } from '../../constants/scheduleTimezones';
 
-import DiscordLinkingInstructions from '../DiscordLinkingInstructions';
+const DISCORD_SERVER = 'https://discord.gg/rFUX24TeXc';
 
 const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const toast = useToast();
@@ -20,6 +21,7 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
     return 'Champion 1';
   });
   const [region, setRegion] = useState(team.region || 'NA');
+  const [scheduleTimezone, setScheduleTimezone] = useState(team.scheduleTimezone || 'America/New_York');
   const [faceitDiv, setFaceitDiv] = useState(team.faceitDiv || 'Open');
   const [teamPhotoURL, setTeamPhotoURL] = useState(team.photoURL || '');
   const [photoPreview, setPhotoPreview] = useState(team.photoURL || null);
@@ -39,8 +41,6 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const [isLinking, setIsLinking] = useState(false);
   const [linkedDiscordId, setLinkedDiscordId] = useState(null);
   const [dmError, setDmError] = useState(null);
-  const [showDiscordHelpModal, setShowDiscordHelpModal] = useState(false);
-  const discordHelpCodeRef = useRef(''); // Ensures code is visible immediately when modal opens
   
   const [pendingVerifications, setPendingVerifications] = useState([]);
   const [showDeprecateModal, setShowDeprecateModal] = useState(false);
@@ -208,6 +208,7 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
       name: teamName,
       sr,
       region,
+      scheduleTimezone,
       faceitDiv,
       photoURL: teamPhotoURL
     });
@@ -295,10 +296,8 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
         isManagerVerification: true // Mark as manager verification
       });
       
-      discordHelpCodeRef.current = code; // Set ref first so code is visible when modal opens
       setVerificationCode(code);
       setVerificationStatus('pending');
-      setShowDiscordHelpModal(true);
     } catch (error) {
       console.error('Error creating verification:', error);
       toast.error('Failed to create verification. Please try again.');
@@ -365,10 +364,8 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
         dmSent: false
       });
       
-      discordHelpCodeRef.current = code; // Set ref first so code is visible when modal opens
       setVerificationCode(code);
       setVerificationStatus('pending');
-      setShowDiscordHelpModal(true);
       
       // Wait a moment for the bot to process
       setTimeout(() => {
@@ -460,6 +457,17 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
             />
           </div>
           <div className="form-group">
+            <label>SCHEDULE TIMEZONE</label>
+            <CustomDropdown 
+              options={SCHEDULE_TIMEZONE_OPTIONS}
+              value={scheduleTimezone}
+              onChange={setScheduleTimezone}
+            />
+            <p className="form-hint" style={{ marginTop: '0.25rem', fontSize: '0.8rem' }}>
+              Availability and scrim times are shown in this timezone (UTC, EST, or West Coast).
+            </p>
+          </div>
+          <div className="form-group">
             <label>AVERAGE RANK</label>
             <CustomDropdown
               options={OVERWATCH_RANK_OPTIONS}
@@ -494,7 +502,24 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
             </p>
             
             <div style={{ 
-              marginTop: '1.5rem', 
+              marginTop: '1rem', 
+              padding: '1.25rem', 
+              background: 'rgba(114, 137, 218, 0.08)', 
+              border: '1px solid rgba(114, 137, 218, 0.25)',
+              borderRadius: '4px'
+            }}>
+              <h4 style={{ color: '#7289da', margin: '0 0 0.75rem 0', fontFamily: 'Share Tech Mono', fontSize: '0.95rem', textTransform: 'uppercase' }}>
+                DISCORD SERVER LINKING
+              </h4>
+              <p style={{ color: 'var(--color-text-secondary, rgba(255, 255, 255, 0.7))', margin: '0 0 0.75rem 0', fontSize: '0.9rem' }}>
+                Your team is automatically linked to your Discord server when you use bot commands (e.g. add-player, schedule-scrim, help) in that server. No extra step needed.
+              </p>
+              <p style={{ color: team?.discordGuildId ? '#00c853' : '#ffaa00', margin: 0, fontSize: '0.85rem', fontWeight: 500 }}>
+                {team?.discordGuildId ? '✅ This team is linked to a Discord server.' : '⚠️ Not linked yet. Use any manager command in your Discord server to link automatically.'}
+              </p>
+            </div>
+            <div style={{ 
+              marginTop: '1rem', 
               padding: '1.5rem', 
               background: 'rgba(114, 137, 218, 0.1)', 
               border: '1px solid rgba(114, 137, 218, 0.3)',
@@ -657,35 +682,12 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
       
       
       <div className="settings-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-          <h3 style={{ margin: 0 }}>LINK YOUR DISCORD ACCOUNT</h3>
-          <button
-            type="button"
-            onClick={() => setShowDiscordHelpModal(true)}
-            className="discord-help-btn"
-            title="How to link Discord"
-            aria-label="How to link Discord"
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              border: '1px solid rgba(114, 137, 218, 0.5)',
-              background: 'rgba(114, 137, 218, 0.15)',
-              color: '#7289da',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-              flexShrink: 0
-            }}
-          >
-            ?
-          </button>
-        </div>
+        <h3 style={{ margin: 0, marginBottom: '0.25rem' }}>LINK YOUR DISCORD ACCOUNT</h3>
         <p className="section-desc">
           Link your own Discord account to enable bot commands and availability requests.
+        </p>
+        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', margin: '0 0 1rem 0', lineHeight: 1.6 }}>
+          <a href={DISCORD_SERVER} target="_blank" rel="noopener noreferrer" style={{ color: '#7289da', textDecoration: 'none', fontWeight: 500 }}>Join the Swissplay Discord</a> first, then enter your Discord username below. The bot will send you a DM to confirm.
         </p>
 
         <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(114, 137, 218, 0.08)', border: '1px solid rgba(114, 137, 218, 0.25)', borderRadius: '4px' }}>
@@ -824,16 +826,6 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
           </div>
         )}
       </div>
-
-      {/* Closable Discord linking instructions popup */}
-      <Modal
-        isOpen={showDiscordHelpModal}
-        onClose={() => setShowDiscordHelpModal(false)}
-        title="How to Link Your Discord"
-        type="info"
-      >
-        <DiscordLinkingInstructions verificationCode={discordHelpCodeRef.current || verificationCode || undefined} />
-      </Modal>
 
       {/* Deprecate team confirmation */}
       <Modal

@@ -20,8 +20,7 @@ const localizer = dateFnsLocalizer({
 
 const EVENT_TYPE_EMOJI = {
   scrim: '⚔️',
-  practice: '🎯',
-  tournament: '🏆',
+  game: '🎮',
   meetup: '👋',
   custom: '📌'
 };
