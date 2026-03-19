@@ -8,23 +8,34 @@ function getFirestore() {
   return admin.firestore();
 }
 
-function parseFlexibleDate(dateStr) {
+/** Parse date relative to timezone (e.g. "today", "tomorrow", "monday"). Uses team's schedule timezone so dates aren't a day off for users. */
+function parseFlexibleDate(dateStr, timezoneIana = 'America/New_York') {
   const lower = (dateStr || '').toLowerCase().trim();
   const now = new Date();
-  if (lower === 'today') return now.toISOString().split('T')[0];
-  if (lower === 'tomorrow') {
-    const t = new Date(now);
-    t.setDate(t.getDate() + 1);
-    return t.toISOString().split('T')[0];
-  }
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayIndex = dayNames.indexOf(lower);
-  if (dayIndex !== -1) {
-    const target = new Date(now);
-    let daysToAdd = dayIndex - target.getDay();
-    if (daysToAdd <= 0) daysToAdd += 7;
-    target.setDate(target.getDate() + daysToAdd);
-    return target.toISOString().split('T')[0];
+  try {
+    if (lower === 'today') {
+      return now.toLocaleDateString('en-CA', { timeZone: timezoneIana });
+    }
+    if (lower === 'tomorrow') {
+      const todayStr = now.toLocaleDateString('en-CA', { timeZone: timezoneIana });
+      const [y, m, d] = todayStr.split('-').map(Number);
+      const tomorrow = new Date(y, m - 1, d + 1);
+      return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    }
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayIndex = dayNames.indexOf(lower);
+    if (dayIndex !== -1) {
+      const todayStr = now.toLocaleDateString('en-CA', { timeZone: timezoneIana });
+      const todayDate = new Date(todayStr + 'T12:00:00Z');
+      const currentDay = todayDate.getDay();
+      let daysToAdd = dayIndex - currentDay;
+      if (daysToAdd <= 0) daysToAdd += 7;
+      const target = new Date(todayDate);
+      target.setDate(target.getDate() + daysToAdd);
+      return target.toISOString().split('T')[0];
+    }
+  } catch (_) {
+    // Invalid timezone, fall back to UTC
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
   return null;
@@ -41,15 +52,42 @@ function parseFlexibleTime(timeStr) {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
-function parseScrimDateTime(dateStr, timeStr) {
+function parseScrimDateTime(dateStr, timeStr, timezoneIana = 'America/New_York') {
   const [year, month, day] = dateStr.split('-').map(Number);
   const [hour, minute] = (timeStr || '19:00').split(':').map(n => parseInt(n, 10) || 0);
-  const start = new Date(year, month - 1, day, hour || 19, minute || 0, 0, 0);
-  const end = new Date(start.getTime() + 90 * 60 * 1000);
-  return { start, end };
+  // Build an ISO-like string and parse it as the team's local time using Intl
+  // so the resulting UTC timestamp is correct regardless of server timezone (Cloud Run = UTC)
+  const localStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00`;
+  try {
+    // Use Temporal-style offset calculation: find UTC offset for that timezone at that moment
+    const approxUTC = new Date(localStr + 'Z'); // treat as UTC first to get close
+    const offsetMs = getTimezoneOffsetMs(approxUTC, timezoneIana);
+    const start = new Date(approxUTC.getTime() - offsetMs);
+    const end = new Date(start.getTime() + 90 * 60 * 1000);
+    return { start, end };
+  } catch (_) {
+    // Fallback: parse as UTC if timezone lookup fails
+    const start = new Date(localStr + 'Z');
+    const end = new Date(start.getTime() + 90 * 60 * 1000);
+    return { start, end };
+  }
+}
+
+/** Returns the UTC offset in milliseconds for a given timezone at a given UTC moment */
+function getTimezoneOffsetMs(utcDate, timezoneIana) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezoneIana,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(utcDate);
+  const get = (type) => parseInt(parts.find(p => p.type === type)?.value || '0');
+  const localAsUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+  return localAsUTC - utcDate.getTime();
 }
 
 async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
+  console.log(`scheduleScrimForTeam: start – team=${team.id} date=${date} time=${time} guildId=${team.discordGuildId}`);
   const pollRef = await db.collection('scrimPolls').add({
     teamId: team.id,
     teamName: team.name,
@@ -64,9 +102,13 @@ async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
   });
   const pollId = pollRef.id;
 
+  console.log(`scheduleScrimForTeam: poll created – pollId=${pollRef.id}`);
+
   if (team.discordGuildId) {
     try {
-      const { start, end } = parseScrimDateTime(date, time);
+      console.log(`scheduleScrimForTeam: creating Discord event...`);
+      const tz = team.scheduleTimezone || 'America/New_York';
+      const { start, end } = parseScrimDateTime(date, time, tz);
       const event = await discordApi.createScheduledEvent(team.discordGuildId, {
         name: `⚔️ Scrim – ${team.name}`,
         description: notes ? `Scrim for ${team.name}\n\n${notes}` : `Scrim for ${team.name}. Check your DMs for the availability poll.`,
@@ -78,11 +120,13 @@ async function scheduleScrimForTeam(db, team, date, time, notes, managerUser) {
         discordEventId: event.id,
         updatedAt: new Date()
       });
+      console.log(`scheduleScrimForTeam: Discord event created – id=${event?.id}`);
     } catch (e) {
-      console.warn('Could not create Discord Scheduled Event (need Manage Events?):', e.message);
+      console.warn('Could not create Discord Scheduled Event:', e.message);
     }
   }
 
+  console.log(`scheduleScrimForTeam: sending DMs...`);
   const members = team.members?.filter(m => m.discordId) || [];
   if (members.length === 0) {
     await discordApi.sendDM(managerUser.id, {
@@ -179,7 +223,9 @@ export async function handleScrimPollResponse(interaction, pollId, responseType)
 export async function handleScheduleScrimSlash(interaction) {
   await interaction.deferReply({ ephemeral: true });
   const db = getFirestore();
+  console.log(`handleScheduleScrimSlash: looking up manager teams for ${interaction.user.id}`);
   const managerTeams = await getManagerTeams(db, interaction.user.id);
+  console.log(`handleScheduleScrimSlash: found ${managerTeams.length} team(s)`);
   if (managerTeams.length === 0) {
     await interaction.followUp({ content: '❌ You are not a verified manager.', ephemeral: true });
     return;
@@ -187,8 +233,11 @@ export async function handleScheduleScrimSlash(interaction) {
   const dateStr = interaction.options.getString('date');
   const timeStr = interaction.options.getString('time');
   const notes = interaction.options.getString('notes') || '';
-  const scrimDate = parseFlexibleDate(dateStr);
+  const team = managerTeams[0];
+  const tz = team?.scheduleTimezone || 'America/New_York';
+  const scrimDate = parseFlexibleDate(dateStr, tz);
   const scrimTime = parseFlexibleTime(timeStr);
+  console.log(`handleScheduleScrimSlash: input dateStr="${dateStr}" timeStr="${timeStr}" tz="${tz}" -> parsed date="${scrimDate}" time="${scrimTime}"`);
   if (!scrimDate || !scrimTime) {
     await interaction.followUp({
       content: '❌ Invalid date or time format.\n\n**Examples:**\n• Date: "tomorrow", "monday", "2024-03-15"\n• Time: "7pm", "19:00"',
@@ -198,7 +247,10 @@ export async function handleScheduleScrimSlash(interaction) {
   }
   if (managerTeams.length === 1) {
     const guildId = interaction.guild?.id;
-    if (guildId) await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
+    if (guildId) {
+      await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
+      if (!managerTeams[0].discordGuildId) managerTeams[0].discordGuildId = guildId;
+    }
     await scheduleScrimForTeam(db, managerTeams[0], scrimDate, scrimTime, notes, interaction.user);
     await interaction.followUp({
       content: `✅ Scrim scheduled for **${scrimDate}** at **${scrimTime}**!\n\nPolling your team members via DM...`,
@@ -209,8 +261,10 @@ export async function handleScheduleScrimSlash(interaction) {
   const sessionCode = Math.random().toString(36).slice(2, 10);
   await db.collection('scheduleScrimSessions').doc(sessionCode).set({
     managerId: interaction.user.id,
-    guildId: interaction.guild?.id,
+    guildId: interaction.guild?.id || null,
     teamIds: managerTeams.map(t => t.id),
+    dateStr,
+    timeStr,
     date: scrimDate,
     time: scrimTime,
     notes,
@@ -250,8 +304,16 @@ export async function handleScheduleScrimTeamSelect(interaction, sessionCode, se
   }
   const team = { id: teamDoc.id, ...teamDoc.data() };
   const guildId = interaction.guild?.id;
-  if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
-  await scheduleScrimForTeam(db, team, session.date, session.time, session.notes || '', interaction.user);
+  if (guildId) {
+    await ensureTeamLinkedToGuild(db, team.id, guildId);
+    if (!team.discordGuildId) team.discordGuildId = guildId;
+  }
+  // Re-parse date with selected team's timezone (each team may have different schedule timezone)
+  const tz = team.scheduleTimezone || 'America/New_York';
+  const scrimDate = parseFlexibleDate(session.dateStr ?? session.date, tz);
+  const scrimTime = parseFlexibleTime(session.timeStr ?? session.time);
+  console.log(`handleScheduleScrimTeamSelect: session dateStr="${session.dateStr}" date="${session.date}" tz="${tz}" -> parsed date="${scrimDate}"`);
+  await scheduleScrimForTeam(db, team, scrimDate, scrimTime, session.notes || '', interaction.user);
   await sessionRef.delete().catch(() => {});
   await interaction.followUp({
     content: `✅ Scrim scheduled for **${team.name}** on **${session.date}** at **${session.time}**!\n\nPolling your team via DM...`,
@@ -294,7 +356,7 @@ export async function handleFindTimeSlash(interaction) {
 }
 
 export async function handleUpcomingScrimsSlash(interaction) {
-  await interaction.reply({ content: '📅 Check your DMs! I sent you the upcoming scrims.', ephemeral: true });
+  await interaction.deferReply();
   const user = interaction.user;
   const db = getFirestore();
   const teamsSnapshot = await db.collection('teams').get();
@@ -302,7 +364,7 @@ export async function handleUpcomingScrimsSlash(interaction) {
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(t => t.members?.some(m => m.discordId === user.id));
   if (userTeams.length === 0) {
-    await discordApi.sendDM(user.id, {
+    await interaction.editReply({
       embeds: [discordApi.embedToApi(new EmbedBuilder()
         .setTitle('❌ Not on a Team')
         .setDescription('You\'re not on any team.')
@@ -317,7 +379,7 @@ export async function handleUpcomingScrimsSlash(interaction) {
     snap.docs.forEach(doc => allScrims.push({ id: doc.id, ...doc.data() }));
   }
   if (allScrims.length === 0) {
-    await discordApi.sendDM(user.id, {
+    await interaction.editReply({
       embeds: [discordApi.embedToApi(new EmbedBuilder()
         .setTitle('📅 No Upcoming Scrims')
         .setDescription('Your team has no scheduled scrims yet.')
@@ -340,7 +402,7 @@ export async function handleUpcomingScrimsSlash(interaction) {
       inline: false
     });
   }
-  await discordApi.sendDM(user.id, { embeds: [discordApi.embedToApi(embed)] });
+  await interaction.editReply({ embeds: [discordApi.embedToApi(embed)] });
 }
 
 export async function handleUploadScrimSlash(interaction) {

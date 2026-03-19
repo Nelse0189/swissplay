@@ -45,19 +45,6 @@ const Home = () => {
             )}
           </div>
         </div>
-        <div className="home-discord-section">
-          <p className="home-discord__intro">
-            Join our Discord to connect with the community, add the Swiss Play bot to your server for team management, and find scrims.
-          </p>
-          <a
-            href={DISCORD_INVITE}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="home-discord__btn"
-          >
-            Join Swiss Play Discord
-          </a>
-        </div>
         <div className="home-features">
           <div className="home-feature">
             <div className="home-feature__icon">

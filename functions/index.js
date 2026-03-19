@@ -404,6 +404,9 @@ async function routeInteraction(interaction) {
       await handleAvailabilityModalSubmit(interaction);
       return;
     }
+    console.error('Unknown modal submit:', { customId, fullData: JSON.stringify(data) });
+    await interaction.reply({ content: `❌ Unknown form (custom_id: ${customId || '(none)'}). Check Firebase logs.`, ephemeral: true });
+    return;
   }
   
   if (type === 3) {
@@ -454,6 +457,57 @@ async function routeInteraction(interaction) {
       await handleScrimPollResponse(interaction, pollId, responseType);
       return;
     }
+    if (customId?.startsWith('send_scrim_')) {
+      const { handleSendScrimSelectMenu } = await import('./handlers/sendScrimRequest.js');
+      await handleSendScrimSelectMenu(interaction, customId);
+      return;
+    }
+    if (customId?.startsWith('drop_scrim_')) {
+      const { handleDropScrimSelectMenu } = await import('./handlers/dropScrim.js');
+      await handleDropScrimSelectMenu(interaction, customId);
+      return;
+    }
+    if (customId?.startsWith('drop_confirm_')) {
+      const { handleDropScrimConfirm } = await import('./handlers/dropScrim.js');
+      await handleDropScrimConfirm(interaction, customId);
+      return;
+    }
+    if (customId === 'drop_cancel') {
+      await interaction.update({ content: 'Cancelled.', components: [] });
+      return;
+    }
+    if (customId?.startsWith('edit_event_')) {
+      const { handleEditEventSelectMenu } = await import('./handlers/calendar.js');
+      await handleEditEventSelectMenu(interaction, customId);
+      return;
+    }
+    if (customId?.startsWith('delete_event_')) {
+      const { handleDeleteEventSelectMenu } = await import('./handlers/calendar.js');
+      await handleDeleteEventSelectMenu(interaction, customId);
+      return;
+    }
+    if (customId?.startsWith('del_event_confirm_')) {
+      const { handleDeleteEventConfirm } = await import('./handlers/calendar.js');
+      await handleDeleteEventConfirm(interaction, customId);
+      return;
+    }
+    if (customId === 'del_event_cancel') {
+      await interaction.update({ content: 'Cancelled.', components: [] });
+      return;
+    }
+    if (customId?.startsWith('submit_review_')) {
+      const { handleSubmitReviewSelect } = await import('./handlers/submitReview.js');
+      await handleSubmitReviewSelect(interaction, customId);
+      return;
+    }
+    if (customId?.startsWith('invite_ringer_team_')) {
+      const { handleInviteRingerTeamSelect } = await import('./handlers/ringers.js');
+      await handleInviteRingerTeamSelect(interaction, customId);
+      return;
+    }
+    console.error('Unknown component interaction (button/select):', { customId, fullData: JSON.stringify(data) });
+    await interaction.reply({ content: `❌ Unknown button/menu (custom_id: ${customId || '(none)'}). Check Firebase logs.`, ephemeral: true });
+    return;
   }
   
   if (type === 2) {
@@ -520,8 +574,72 @@ async function routeInteraction(interaction) {
         const { handleScheduleCarryOverSlash } = await import('./handlers/scheduleCarryOver.js');
         await handleScheduleCarryOverSlash(interaction);
         break;
-      default:
-        await interaction.reply({ content: '❌ Unknown command.', ephemeral: true });
+      case 'event-summary':
+        const { handleEventSummarySlash } = await import('./handlers/eventSummary.js');
+        await handleEventSummarySlash(interaction);
+        break;
+      case 'my-timezone':
+        const { handleMyTimezoneSlash } = await import('./handlers/myTimezone.js');
+        await handleMyTimezoneSlash(interaction);
+        break;
+      case 'invite':
+        const { handleInviteSlash } = await import('./handlers/invite.js');
+        await handleInviteSlash(interaction);
+        break;
+      case 'create-team':
+        const { handleCreateTeamSlash } = await import('./handlers/createTeam.js');
+        await handleCreateTeamSlash(interaction);
+        break;
+      case 'send-scrim-request':
+        const { handleSendScrimRequestSlash } = await import('./handlers/sendScrimRequest.js');
+        await handleSendScrimRequestSlash(interaction);
+        break;
+      case 'drop-scrim':
+        const { handleDropScrimSlash } = await import('./handlers/dropScrim.js');
+        await handleDropScrimSlash(interaction);
+        break;
+      case 'add-event':
+        const { handleAddEventSlash } = await import('./handlers/calendar.js');
+        await handleAddEventSlash(interaction);
+        break;
+      case 'edit-event':
+        const { handleEditEventSlash } = await import('./handlers/calendar.js');
+        await handleEditEventSlash(interaction);
+        break;
+      case 'delete-event':
+        const { handleDeleteEventSlash } = await import('./handlers/calendar.js');
+        await handleDeleteEventSlash(interaction);
+        break;
+      case 'find-ringers':
+        const { handleFindRingersSlash } = await import('./handlers/ringers.js');
+        await handleFindRingersSlash(interaction);
+        break;
+      case 'edit-profile':
+        const { handleEditProfileSlash } = await import('./handlers/editProfile.js');
+        await handleEditProfileSlash(interaction);
+        break;
+      case 'team-settings':
+        const { handleTeamSettingsSlash } = await import('./handlers/teamSettings.js');
+        await handleTeamSettingsSlash(interaction);
+        break;
+      case 'submit-review':
+        const { handleSubmitReviewSlash } = await import('./handlers/submitReview.js');
+        await handleSubmitReviewSlash(interaction);
+        break;
+      default: {
+        const receivedCommand = commandName || data?.name || '(none)';
+        console.error('Unknown command received - not implemented in Firebase bot:', {
+          commandName: receivedCommand,
+          interactionType: type,
+          dataKeys: data ? Object.keys(data) : [],
+          fullData: JSON.stringify(data),
+          hint: 'Add a case for this command in routeInteraction(), or register only supported commands with Discord.',
+        });
+        await interaction.reply({
+          content: `❌ Command \`/${receivedCommand}\` is not supported by this bot. Supported commands: help, my-team, schedule-scrim, find-time, add-player, and more — try \`/help\` for the full list.`,
+          ephemeral: true,
+        });
+      }
     }
   }
 }
@@ -908,7 +1026,10 @@ export const discordInteractions = onRequest(
     }
     
     try {
-      console.log('Routing interaction:', body.data?.name || body.data?.custom_id);
+      const routeLabel = body.type === 2
+        ? `slash: ${body.data?.name || '(no name)'}`
+        : body.data?.custom_id || `type=${body.type}`;
+      console.log('Routing interaction:', routeLabel, body.data ? JSON.stringify(body.data) : '');
       await routeInteraction(interaction);
       console.log('Interaction routing complete');
       
@@ -921,9 +1042,26 @@ export const discordInteractions = onRequest(
         }
       }
     } catch (error) {
-      console.error('Interaction error:', error);
+      const errMsg = error?.message || String(error);
+      const errStack = error?.stack || '';
+      console.error('Interaction error:', {
+        message: errMsg,
+        stack: errStack,
+        name: error?.name,
+        command: body?.data?.name ?? body?.data?.custom_id ?? '(none)',
+        interactionType: body?.type,
+      });
+      const userMsg = `❌ Error: ${errMsg.substring(0, 1800)}`; // Discord 2000 char limit
       if (!responseSent) {
-        sendResponse({ type: 4, data: { content: `❌ Error: ${error.message}`, flags: 64 } });
+        sendResponse({ type: 4, data: { content: userMsg, flags: 64 } });
+      } else {
+        // Response already sent (deferred) - edit the reply so user sees the actual error
+        const { interactionEditReply } = await import('./discordApi.js');
+        try {
+          await interactionEditReply(body.application_id, body.token, { content: userMsg });
+        } catch (editErr) {
+          console.error('Failed to edit deferred reply with error:', editErr.message);
+        }
       }
     }
   }

@@ -35,32 +35,24 @@ export async function getManagerTeams(db, discordId) {
     const teamMap = new Map();
     const discordIdStr = String(discordId);
 
-    // 1. Teams where this Discord ID is in managerDiscordIds
-    const byManagerDiscord = await db.collection('teams')
-      .where('managerDiscordIds', 'array-contains', discordIdStr)
-      .get();
+    // Run the managerDiscordIds query and users query in parallel
+    const [byManagerDiscord, usersSnapshot] = await Promise.all([
+      db.collection('teams').where('managerDiscordIds', 'array-contains', discordIdStr).get(),
+      db.collection('users').where('discordId', '==', discordIdStr).get(),
+    ]);
+
     byManagerDiscord.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
 
-    // 2. Try with raw discordId if string didn't match (Firestore type quirks)
-    if (discordId !== discordIdStr) {
-      const byManagerDiscordAlt = await db.collection('teams')
-        .where('managerDiscordIds', 'array-contains', discordId)
-        .get();
-      byManagerDiscordAlt.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
-    }
-
-    // 3. Teams where user is owner (lookup Firebase UID from users by discordId)
-    let usersSnapshot = await db.collection('users').where('discordId', '==', discordIdStr).limit(1).get();
-    if (usersSnapshot.empty && discordId !== discordIdStr) {
-      usersSnapshot = await db.collection('users').where('discordId', '==', discordId).limit(1).get();
-    }
-    if (!usersSnapshot.empty) {
-      const uid = usersSnapshot.docs[0].id;
-      const byOwner = await db.collection('teams').where('ownerId', '==', uid).get();
-      for (const d of byOwner.docs) {
+    // For each user found, look up their owned teams — run all in parallel
+    const ownerQueries = usersSnapshot.docs.map(userDoc =>
+      db.collection('teams').where('ownerId', '==', userDoc.id).get()
+    );
+    const ownerResults = await Promise.all(ownerQueries);
+    for (const snap of ownerResults) {
+      for (const d of snap.docs) {
         const team = { id: d.id, ...d.data() };
         teamMap.set(d.id, team);
-        // Backfill managerDiscordIds so future lookups are fast
+        // Backfill managerDiscordIds so future lookups skip the users query entirely
         const mids = team.managerDiscordIds || [];
         if (!mids.some(id => String(id) === discordIdStr)) {
           db.collection('teams').doc(d.id).update({
@@ -111,4 +103,20 @@ export async function getPlayerByDiscordId(discordId, teamId) {
   if (!teamDoc.exists) return null;
   const team = { id: teamDoc.id, ...teamDoc.data() };
   return team.members?.find(m => m.discordId === discordId) || null;
+}
+
+export async function getUserByDiscordId(discordId) {
+  const db = getFirestore();
+  try {
+    const snapshot = await db.collection('users')
+      .where('discordId', '==', discordId)
+      .limit(1)
+      .get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { uid: doc.id, ...doc.data() };
+  } catch (error) {
+    console.error('Error in getUserByDiscordId:', error);
+    return null;
+  }
 }

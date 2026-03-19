@@ -9,22 +9,30 @@ export async function discordFetch(path, options = {}) {
   if (!token) throw new Error('DISCORD_TOKEN not set');
   
   const url = path.startsWith('http') ? path : `${DISCORD_API}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bot ${token}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-  
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Discord API ${res.status}: ${text}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bot ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Discord API ${res.status}: ${text}`);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') throw new Error(`Discord API timeout: ${url}`);
+    throw err;
   }
-  
-  if (res.status === 204) return null;
-  return res.json();
 }
 
 /** Create DM channel with user */
@@ -70,6 +78,22 @@ export async function interactionEditReply(applicationId, token, payload) {
   return discordFetch(`/webhooks/${applicationId}/${token}/messages/@original`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  });
+}
+
+/** Create a scheduled event in a guild (appears in the server's Events tab) */
+export async function createScheduledEvent(guildId, { name, description, startTime, endTime, location }) {
+  return discordFetch(`/guilds/${guildId}/scheduled-events`, {
+    method: 'POST',
+    body: JSON.stringify({
+      entity_type: 3, // EXTERNAL
+      privacy_level: 2, // GUILD_ONLY
+      name: name.substring(0, 100),
+      description: description ? description.substring(0, 1000) : undefined,
+      scheduled_start_time: startTime instanceof Date ? startTime.toISOString() : startTime,
+      scheduled_end_time: endTime instanceof Date ? endTime.toISOString() : endTime,
+      entity_metadata: { location: (location || name).substring(0, 100) },
+    }),
   });
 }
 

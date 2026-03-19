@@ -51,6 +51,16 @@ export function createInteractionAdapter(body, sendResponse) {
           return resolved ? { id: opt.value, username: resolved.username, globalName: resolved.global_name || resolved.username, ...resolved } : { id: opt.value, username: 'Unknown' };
         },
         getString: (name) => opts.find(o => o.name === name)?.value ?? null,
+        getInteger: (name) => {
+          const opt = opts.find(o => o.name === name);
+          if (!opt || opt.type !== 4) return null;
+          return opt.value ?? null;
+        },
+        getBoolean: (name) => {
+          const opt = opts.find(o => o.name === name);
+          if (!opt || opt.type !== 5) return null;
+          return opt.value ?? null;
+        },
         getAttachment: (name) => {
           const opt = opts.find(o => o.name === name);
           if (!opt) return null;

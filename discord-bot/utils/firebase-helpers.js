@@ -148,14 +148,51 @@ export async function getAllTeams() {
 
 /**
  * Get all teams where user is manager (by Discord ID)
+ * Includes: teams with managerDiscordIds, plus teams where user is owner (lookup via users collection)
  */
 export async function getManagerTeams(discordId) {
   const db = getFirestore();
   try {
-    const snapshot = await db.collection('teams')
-      .where('managerDiscordIds', 'array-contains', discordId)
+    const teamMap = new Map();
+    const discordIdStr = String(discordId);
+
+    // 1. Teams where this Discord ID is in managerDiscordIds
+    const byManagerDiscord = await db.collection('teams')
+      .where('managerDiscordIds', 'array-contains', discordIdStr)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    byManagerDiscord.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
+
+    // 2. Try with raw discordId if string didn't match (Firestore type quirks)
+    if (discordId !== discordIdStr) {
+      const byManagerDiscordAlt = await db.collection('teams')
+        .where('managerDiscordIds', 'array-contains', discordId)
+        .get();
+      byManagerDiscordAlt.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
+    }
+
+    // 3. Teams where user is owner (lookup Firebase UID(s) from users by discordId)
+    // Query all matching user docs — same Discord ID can be linked to multiple Firebase accounts
+    let usersSnapshot = await db.collection('users').where('discordId', '==', discordIdStr).get();
+    if (usersSnapshot.empty && discordId !== discordIdStr) {
+      usersSnapshot = await db.collection('users').where('discordId', '==', discordId).get();
+    }
+    for (const userDoc of usersSnapshot.docs) {
+      const uid = userDoc.id;
+      const byOwner = await db.collection('teams').where('ownerId', '==', uid).get();
+      for (const d of byOwner.docs) {
+        const team = { id: d.id, ...d.data() };
+        teamMap.set(d.id, team);
+        // Backfill managerDiscordIds so future lookups are fast
+        const mids = team.managerDiscordIds || [];
+        if (!mids.some(id => String(id) === discordIdStr)) {
+          db.collection('teams').doc(d.id).update({
+            managerDiscordIds: [...mids, discordIdStr]
+          }).catch(() => {});
+        }
+      }
+    }
+
+    return Array.from(teamMap.values());
   } catch (error) {
     console.error('Error getting manager teams:', error);
     return [];

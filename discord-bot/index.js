@@ -410,7 +410,10 @@ client.on('interactionCreate', async (interaction) => {
           
           const team = { id: teamDoc.id, ...teamDoc.data() };
           const guildId = interaction.guild?.id;
-          if (guildId) await ensureTeamLinkedToGuild(db, team.id, guildId);
+          if (guildId) {
+            await ensureTeamLinkedToGuild(db, team.id, guildId);
+            if (!team.discordGuildId) team.discordGuildId = guildId;
+          }
           
           await scheduleScrimForTeam(
             db,
@@ -1542,7 +1545,10 @@ async function handleScheduleScrimSlash(interaction) {
     
     // Single team - schedule directly
     const guildId = interaction.guild?.id;
-    if (guildId) await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
+    if (guildId) {
+      await ensureTeamLinkedToGuild(db, managerTeams[0].id, guildId);
+      if (!managerTeams[0].discordGuildId) managerTeams[0].discordGuildId = guildId;
+    }
     await scheduleScrimForTeam(db, interaction.client, managerTeams[0], scrimDate, scrimTime, notes, interaction.user);
     
     await interaction.followUp({
@@ -1634,13 +1640,14 @@ async function getManagerTeams(db, discordId) {
       .get();
     byManagerDiscord.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
 
-    // 2. Teams where user is owner (lookup Firebase UID from users by discordId)
-    let usersSnapshot = await db.collection('users').where('discordId', '==', discordIdStr).limit(1).get();
+    // 2. Teams where user is owner (lookup Firebase UID(s) from users by discordId)
+    // Query all matching user docs — same Discord ID can be linked to multiple Firebase accounts
+    let usersSnapshot = await db.collection('users').where('discordId', '==', discordIdStr).get();
     if (usersSnapshot.empty && discordId !== discordIdStr) {
-      usersSnapshot = await db.collection('users').where('discordId', '==', discordId).limit(1).get();
+      usersSnapshot = await db.collection('users').where('discordId', '==', discordId).get();
     }
-    if (!usersSnapshot.empty) {
-      const uid = usersSnapshot.docs[0].id;
+    for (const userDoc of usersSnapshot.docs) {
+      const uid = userDoc.id;
       const byOwner = await db.collection('teams').where('ownerId', '==', uid).get();
       for (const d of byOwner.docs) {
         const team = { id: d.id, ...d.data() };
@@ -1726,7 +1733,8 @@ async function scheduleScrimForTeam(db, client, team, date, time, notes, manager
   // Create Discord Scheduled Event (appears in server's Events tab) if team has linked server
   if (team.discordGuildId) {
     try {
-      const guild = client.guilds.cache.get(team.discordGuildId);
+      const guild = client.guilds.cache.get(team.discordGuildId)
+        || await client.guilds.fetch(team.discordGuildId).catch(() => null);
       if (guild) {
         const [y, m, d] = date.split('-').map(Number);
         const [hr, min] = (time || '19:00').split(':').map(n => parseInt(n, 10) || 0);
@@ -3045,7 +3053,7 @@ async function handleTeamStatsSlash(interaction) {
 
 async function handleUpcomingScrimsSlash(interaction) {
   try {
-    await interaction.reply({ content: '📅 Check your DMs! I sent you the upcoming scrims.', ephemeral: true });
+    await interaction.deferReply();
     
     const user = interaction.user;
     const db = getFirestore();
@@ -3057,7 +3065,7 @@ async function handleUpcomingScrimsSlash(interaction) {
       .filter(t => t.members && t.members.some(m => m.discordId === user.id));
     
     if (userTeams.length === 0) {
-      await user.send({
+      await interaction.editReply({
         embeds: [new EmbedBuilder()
           .setTitle('❌ Not on a Team')
           .setDescription('You\'re not currently on any team.')
@@ -3082,7 +3090,7 @@ async function handleUpcomingScrimsSlash(interaction) {
     }
     
     if (allScrims.length === 0) {
-      await user.send({
+      await interaction.editReply({
         embeds: [new EmbedBuilder()
           .setTitle('📅 No Upcoming Scrims')
           .setDescription('Your team has no scheduled scrims yet.')
@@ -3125,7 +3133,7 @@ async function handleUpcomingScrimsSlash(interaction) {
       embed.setFooter({ text: `Showing 10 of ${allScrims.length} scrims` });
     }
     
-    await user.send({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
     
   } catch (error) {
     console.error('Error in handleUpcomingScrimsSlash:', error);

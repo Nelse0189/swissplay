@@ -6,14 +6,20 @@ import { SlashCommandBuilder } from 'discord.js';
  */
 function getScheduleScrimDateChoices() {
   const choices = [];
+  // Use US Eastern time to generate the choices since that's the most common baseline
+  // This ensures "Today" aligns with the US calendar day
   const now = new Date();
+  const estDateStr = now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const [y, m, d] = estDateStr.split('-').map(Number);
+  
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
   for (let i = 0; i < 14; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
-    const ymd = d.toISOString().split('T')[0];
-    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `${dayNames[d.getDay()]} ${monthNames[d.getMonth()]} ${d.getDate()}`;
+    // Create date at noon EST to safely add days without DST shifting issues
+    const targetDate = new Date(y, m - 1, d + i, 12, 0, 0);
+    const ymd = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `${dayNames[targetDate.getDay()]} ${monthNames[targetDate.getMonth()]} ${targetDate.getDate()}`;
     choices.push({ name: label, value: ymd });
   }
   return choices;
