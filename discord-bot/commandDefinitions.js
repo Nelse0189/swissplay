@@ -44,6 +44,18 @@ const SCHEDULE_SCRIM_TIME_CHOICES = [
   { name: '11:30 PM', value: '23:30' },
 ];
 
+/** Time windows for `/request-availability` (dropdown). Value is stored on the request and shown to players. */
+export const AVAILABILITY_REQUEST_PERIOD_CHOICES = [
+  { name: 'This week', value: 'This week' },
+  { name: 'Next week', value: 'Next week' },
+  { name: 'This weekend', value: 'This weekend' },
+  { name: 'Next weekend', value: 'Next weekend' },
+  { name: 'Today', value: 'Today' },
+  { name: 'Tomorrow', value: 'Tomorrow' },
+  { name: 'Next 7 days', value: 'Next 7 days' },
+  { name: 'Next 14 days', value: 'Next 14 days' },
+];
+
 /**
  * Slash command definitions. Shared by index.js (bot) and register-commands.js (one-time registration).
  * When using Firebase Functions only, run: node register-commands.js
@@ -54,8 +66,9 @@ export const commands = [
     .setDescription('Request availability from specific players or all players')
     .addStringOption(option =>
       option.setName('period')
-        .setDescription('Specific time period (e.g., this weekend, March 15-20)')
-        .setRequired(true))
+        .setDescription('Time window you are asking about')
+        .setRequired(true)
+        .addChoices(...AVAILABILITY_REQUEST_PERIOD_CHOICES))
     .addStringOption(option =>
       option.setName('players')
         .setDescription('Mention players (@player1 @player2) or type "all" for all players')

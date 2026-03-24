@@ -457,6 +457,22 @@ export async function handleAvailabilityModalSubmit(interaction) {
 
 export async function handleAvailabilityRequestSlash(interaction) {
   await interaction.deferReply({ ephemeral: true });
+  const periodOption = interaction.options.getString('period');
+  const playersOption = interaction.options.getString('players');
+
+  const mentionedUserIds = [];
+  if (playersOption) {
+    const mentionRegex = /<@!?(\d+)>/g;
+    let match;
+    while ((match = mentionRegex.exec(playersOption)) !== null) {
+      mentionedUserIds.push(match[1]);
+    }
+  }
+  const sendToAll =
+    !playersOption ||
+    playersOption.toLowerCase().includes('all') ||
+    mentionedUserIds.length === 0;
+
   const { getTeamByManagerDiscordId } = await import('../lib/firebase-helpers.js');
   const db = getFirestore();
   const team = await getTeamByManagerDiscordId(interaction.user.id);
@@ -464,28 +480,68 @@ export async function handleAvailabilityRequestSlash(interaction) {
     await interaction.followUp({ content: '❌ You are not a manager of any team.', ephemeral: true });
     return;
   }
-  const players = team.members?.filter(m => m.roles?.includes('Player') || m.roles?.includes('Coach')).filter(m => m.discordId) || [];
-  if (players.length === 0) {
-    await interaction.followUp({ content: '❌ No players with Discord linked.', ephemeral: true });
+
+  const allTeamPlayers =
+    team.members?.filter(m => m.roles?.includes('Player') || m.roles?.includes('Coach')) || [];
+
+  let targetPlayers = allTeamPlayers.filter(p => p.discordId);
+  if (targetPlayers.length === 0) {
+    await interaction.followUp({
+      content: '❌ No players have linked their Discord accounts.',
+      ephemeral: true,
+    });
     return;
   }
+
+  if (!sendToAll && mentionedUserIds.length > 0) {
+    targetPlayers = targetPlayers.filter(p => mentionedUserIds.includes(p.discordId));
+    if (targetPlayers.length === 0) {
+      await interaction.followUp({
+        content:
+          '❌ None of the mentioned players are linked to your team. They must link Discord from the website first.',
+        ephemeral: true,
+      });
+      return;
+    }
+  }
+
+  const unlinkedIds = mentionedUserIds.filter(
+    id => !allTeamPlayers.some(p => p.discordId === id)
+  );
+  let warnNote = '';
+  if (unlinkedIds.length > 0) {
+    warnNote = `\n⚠️ Skipped ${unlinkedIds.length} mention(s) not on your team.`;
+  }
+
+  const timePeriod = periodOption || null;
   const requestRef = await db.collection('availabilityRequests').add({
     teamId: team.id,
     managerDiscordId: interaction.user.id,
     managerName: interaction.user.username,
+    timePeriod,
     createdAt: new Date(),
     responses: {},
-    status: 'pending'
+    status: 'pending',
   });
   const requestId = requestRef.id;
+
   const embed = new EmbedBuilder()
     .setTitle('📅 Availability Request')
-    .setDescription('Please respond with your availability.')
+    .setDescription('Please respond with your availability for the upcoming scrim.')
     .setColor(0x00ff00)
     .addFields(
       { name: 'Team', value: team.name, inline: true },
       { name: 'Requested by', value: interaction.user.username, inline: true }
     );
+  if (timePeriod) {
+    embed.addFields({ name: 'Time Period', value: timePeriod, inline: true });
+  }
+  embed.addFields({
+    name: 'Instructions',
+    value:
+      'Click the buttons below to respond:\n✅ Available\n❌ Unavailable\n⏰ Maybe (with time constraints)',
+  });
+
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`avail_yes_${requestId}`).setLabel('✅ Available').setStyle(ButtonStyle.Success),
@@ -493,17 +549,22 @@ export async function handleAvailabilityRequestSlash(interaction) {
     new ButtonBuilder().setCustomId(`avail_maybe_${requestId}`).setLabel('⏰ Maybe').setStyle(ButtonStyle.Secondary)
   );
   const components = discordApi.componentsToApi([row]);
+
   let sent = 0;
-  for (const p of players) {
+  let failCount = 0;
+  for (const p of targetPlayers) {
     try {
       await discordApi.sendDM(p.discordId, { embeds: [discordApi.embedToApi(embed)], components });
       sent++;
     } catch (e) {
       console.error('Failed to DM player:', e);
+      failCount++;
     }
   }
+
+  const scope = sendToAll ? `all ${sent} linked player(s)` : `${sent} selected player(s)`;
   await interaction.followUp({
-    content: `✅ Sent availability request to ${sent} player(s).`,
-    ephemeral: true
+    content: `✅ Sent availability request to ${scope}.${failCount > 0 ? ` ${failCount} failed (DM closed?).` : ''}${warnNote}`,
+    ephemeral: true,
   });
 }

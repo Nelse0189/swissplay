@@ -2705,7 +2705,7 @@ async function handleHelpSlash(interaction) {
         },
         {
           name: '`/request-availability`',
-          value: 'Request availability from specific players (legacy command).'
+          value: 'Pick a time window from the menu; optionally mention players or use "all" for the whole team.'
         },
         {
           name: '`/upload-scrim`',
