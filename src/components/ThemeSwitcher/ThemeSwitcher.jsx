@@ -3,8 +3,6 @@ import { colorPalettes } from '../../styles/palettes';
 import './ThemeSwitcher.css';
 
 const logoFonts = [
-  'Univers',
-  'Helvetica Neue',
   'Orbitron',
   'Roboto',
   'Montserrat',
@@ -53,16 +51,19 @@ const ThemeSwitcher = () => {
       applyPalette('slate-steel');
     }
 
-    if (savedFont) {
+    if (savedFont && !['Univers', 'Helvetica Neue'].includes(savedFont)) {
       handleFontChange(savedFont);
     } else {
+      if (savedFont && ['Univers', 'Helvetica Neue'].includes(savedFont)) {
+        localStorage.removeItem('swissplay-logo-font');
+      }
       handleFontChange('Orbitron');
     }
   }, []);
 
   const loadFont = (fontName) => {
     // Skip loading for system fonts or premium fonts not on Google Fonts
-    const skipGoogleFonts = ['Univers', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'];
+    const skipGoogleFonts = ['Helvetica', 'Arial'];
     if (skipGoogleFonts.includes(fontName)) {
       return;
     }
@@ -80,7 +81,7 @@ const ThemeSwitcher = () => {
   const handleFontChange = (fontName) => {
     setSelectedFont(fontName);
     loadFont(fontName);
-    document.documentElement.style.setProperty('--logo-font', `'${fontName}', sans-serif`);
+    document.documentElement.style.setProperty('--logo-font', `'${fontName}', ui-sans-serif, system-ui`);
     localStorage.setItem('swissplay-logo-font', fontName);
   };
 
@@ -195,7 +196,7 @@ const ThemeSwitcher = () => {
           >
             <div 
               className="font-preview" 
-              style={{ fontFamily: `'${font}', sans-serif` }}
+              style={{ fontFamily: `'${font}', ui-sans-serif, system-ui` }}
             >
               SWISSPLAY
             </div>

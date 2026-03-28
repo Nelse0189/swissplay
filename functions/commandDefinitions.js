@@ -27,9 +27,9 @@ function getScheduleScrimDateChoices() {
 
 /**
  * Time choices for scrims: 6:00 PM to 11:30 PM in 30-minute increments.
- * Values are HH:mm (24h) for parseFlexibleTime compatibility.
+ * Values are HH:mm (24h). Shared by `/schedule-scrim` and `/list-available-scrims`.
  */
-const SCHEDULE_SCRIM_TIME_CHOICES = [
+export const SCRIM_SLOT_TIME_CHOICES = [
   { name: '6:00 PM', value: '18:00' },
   { name: '6:30 PM', value: '18:30' },
   { name: '7:00 PM', value: '19:00' },
@@ -42,6 +42,44 @@ const SCHEDULE_SCRIM_TIME_CHOICES = [
   { name: '10:30 PM', value: '22:30' },
   { name: '11:00 PM', value: '23:00' },
   { name: '11:30 PM', value: '23:30' },
+];
+
+/** Hours 00–23 for `/add-event` (pair with minute; Discord max 25 choices per option). */
+export const CALENDAR_HOUR_CHOICES = Array.from({ length: 24 }, (_, i) => {
+  const v = String(i).padStart(2, '0');
+  return { name: v, value: v };
+});
+
+/** Minute marks for `/add-event` (15-minute steps). */
+export const CALENDAR_MINUTE_CHOICES = [
+  { name: '00', value: '00' },
+  { name: '15', value: '15' },
+  { name: '30', value: '30' },
+  { name: '45', value: '45' },
+];
+
+/**
+ * Overwatch 2 team average rank for slash commands.
+ * Discord allows at most 25 choices per string option; full ranks are 8×5 = 40, so we use tier + division.
+ * Division 1 = highest within the tier, 5 = lowest (matches website `OVERWATCH_RANK_OPTIONS`).
+ */
+export const OW_RANK_TIER_CHOICES = [
+  { name: 'Champion', value: 'Champion' },
+  { name: 'Grandmaster', value: 'Grandmaster' },
+  { name: 'Master', value: 'Master' },
+  { name: 'Diamond', value: 'Diamond' },
+  { name: 'Platinum', value: 'Platinum' },
+  { name: 'Gold', value: 'Gold' },
+  { name: 'Silver', value: 'Silver' },
+  { name: 'Bronze', value: 'Bronze' },
+];
+
+export const OW_RANK_DIVISION_CHOICES = [
+  { name: '1 (highest in tier)', value: '1' },
+  { name: '2', value: '2' },
+  { name: '3', value: '3' },
+  { name: '4', value: '4' },
+  { name: '5 (lowest in tier)', value: '5' },
 ];
 
 /** Time windows for `/request-availability` (dropdown). Value is stored on the request and shown to players. */
@@ -57,13 +95,13 @@ export const AVAILABILITY_REQUEST_PERIOD_CHOICES = [
 ];
 
 /**
- * Slash command definitions. Shared by index.js (bot) and register-commands.js (one-time registration).
- * When using Firebase Functions only, run: node register-commands.js
+ * Slash command definitions for Discord.
+ * Register with Discord: from `functions/`, run `npm run register-commands` (needs .env with token + client id).
  */
 export const commands = [
   new SlashCommandBuilder()
     .setName('request-availability')
-    .setDescription('Request availability from specific players or all players')
+    .setDescription('Post a channel poll: weekday reactions sync to team availability')
     .addStringOption(option =>
       option.setName('period')
         .setDescription('Time window you are asking about')
@@ -165,7 +203,7 @@ export const commands = [
       option.setName('time')
         .setDescription('Select the scrim time (6pm onwards)')
         .setRequired(true)
-        .addChoices(...SCHEDULE_SCRIM_TIME_CHOICES))
+        .addChoices(...SCRIM_SLOT_TIME_CHOICES))
     .addStringOption(option =>
       option.setName('notes')
         .setDescription('Optional notes about the scrim')
@@ -239,11 +277,11 @@ export const commands = [
     .addStringOption(option =>
       option.setName('abbreviation')
         .setDescription('Team abbreviation (e.g. NFC)')
-        .setRequired(false))
+        .setRequired(true))
     .addStringOption(option =>
       option.setName('region')
         .setDescription('Region')
-        .setRequired(false)
+        .setRequired(true)
         .addChoices(
           { name: 'NA', value: 'NA' },
           { name: 'EU', value: 'EU' },
@@ -252,26 +290,130 @@ export const commands = [
           { name: 'SA', value: 'SA' }
         ))
     .addStringOption(option =>
-      option.setName('sr')
-        .setDescription('Average rank')
-        .setRequired(false)
-        .addChoices(
-          { name: 'Champion 1', value: 'Champion 1' },
-          { name: 'Grandmaster 1', value: 'Grandmaster 1' },
-          { name: 'Master 1', value: 'Master 1' },
-          { name: 'Diamond 1', value: 'Diamond 1' },
-          { name: 'Platinum 1', value: 'Platinum 1' }
-        ))
+      option.setName('rank-tier')
+        .setDescription('Average rank — tier (e.g. Champion)')
+        .setRequired(true)
+        .addChoices(...OW_RANK_TIER_CHOICES))
+    .addStringOption(option =>
+      option.setName('rank-division')
+        .setDescription('Division within tier: 1 = top, 5 = bottom')
+        .setRequired(true)
+        .addChoices(...OW_RANK_DIVISION_CHOICES))
     .addStringOption(option =>
       option.setName('faceit-div')
         .setDescription('FaceIT division')
-        .setRequired(false)
+        .setRequired(true)
         .addChoices(
           { name: 'OWCS', value: 'OWCS' },
           { name: 'Masters', value: 'Masters' },
           { name: 'Advanced', value: 'Advanced' },
           { name: 'Expert', value: 'Expert' },
           { name: 'Open', value: 'Open' }
+        )),
+  new SlashCommandBuilder()
+    .setName('list-available-scrims')
+    .setDescription('List teams with an open scrim slot on a chosen day and time (from SwissPlay schedules)')
+    .addStringOption(option =>
+      option.setName('day')
+        .setDescription('Day of week')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Monday', value: 'Monday' },
+          { name: 'Tuesday', value: 'Tuesday' },
+          { name: 'Wednesday', value: 'Wednesday' },
+          { name: 'Thursday', value: 'Thursday' },
+          { name: 'Friday', value: 'Friday' },
+          { name: 'Saturday', value: 'Saturday' },
+          { name: 'Sunday', value: 'Sunday' }
+        ))
+    .addStringOption(option =>
+      option.setName('time')
+        .setDescription('Start time for the scrim slot')
+        .setRequired(true)
+        .addChoices(...SCRIM_SLOT_TIME_CHOICES))
+    .addStringOption(option =>
+      option.setName('region')
+        .setDescription('Filter by region')
+        .setRequired(false)
+        .addChoices(
+          { name: 'All', value: 'All' },
+          { name: 'NA', value: 'NA' },
+          { name: 'EU', value: 'EU' },
+          { name: 'OCE', value: 'OCE' },
+          { name: 'Asia', value: 'Asia' },
+          { name: 'SA', value: 'SA' }
+        ))
+    .addStringOption(option =>
+      option.setName('division')
+        .setDescription('Filter by FaceIT division')
+        .setRequired(false)
+        .addChoices(
+          { name: 'All', value: 'All' },
+          { name: 'OWCS', value: 'OWCS' },
+          { name: 'Masters', value: 'Masters' },
+          { name: 'Advanced', value: 'Advanced' },
+          { name: 'Expert', value: 'Expert' },
+          { name: 'Open', value: 'Open' }
+        )),
+  new SlashCommandBuilder()
+    .setName('find-scrims')
+    .setDescription('Find teams whose schedule overlaps yours (same logic as Find Scrims on the website)')
+    .addStringOption(option =>
+      option
+        .setName('team')
+        .setDescription('Your team (type to search, then pick from the list)')
+        .setRequired(true)
+        .setAutocomplete(true))
+    .addStringOption(option =>
+      option
+        .setName('division')
+        .setDescription('Filter opponents by FaceIT division')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Any', value: 'All' },
+          { name: 'OWCS', value: 'OWCS' },
+          { name: 'Masters', value: 'Masters' },
+          { name: 'Expert', value: 'Expert' },
+          { name: 'Advanced', value: 'Advanced' },
+          { name: 'Open', value: 'Open' }
+        ))
+    .addStringOption(option =>
+      option
+        .setName('region')
+        .setDescription('Filter opponents by region')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Any', value: 'All' },
+          { name: 'NA', value: 'NA' },
+          { name: 'EU', value: 'EU' },
+          { name: 'OCE', value: 'OCE' },
+          { name: 'Asia', value: 'Asia' },
+          { name: 'SA', value: 'SA' }
+        ))
+    .addStringOption(option =>
+      option
+        .setName('timezone')
+        .setDescription('Filter by opponent schedule timezone (website setting)')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Any', value: 'All' },
+          { name: 'UTC', value: 'UTC' },
+          { name: 'EST / East Coast', value: 'America/New_York' },
+          { name: 'PST / West Coast', value: 'America/Los_Angeles' }
+        ))
+    .addStringOption(option =>
+      option
+        .setName('day')
+        .setDescription('Only opponents with availability on this day')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Monday', value: 'Monday' },
+          { name: 'Tuesday', value: 'Tuesday' },
+          { name: 'Wednesday', value: 'Wednesday' },
+          { name: 'Thursday', value: 'Thursday' },
+          { name: 'Friday', value: 'Friday' },
+          { name: 'Saturday', value: 'Saturday' },
+          { name: 'Sunday', value: 'Sunday' }
         )),
   new SlashCommandBuilder()
     .setName('send-scrim-request')
@@ -334,13 +476,25 @@ export const commands = [
         .setDescription('Date (YYYY-MM-DD)')
         .setRequired(true))
     .addStringOption(option =>
-      option.setName('start-time')
-        .setDescription('Start time (HH:mm, 24h)')
-        .setRequired(true))
+      option.setName('start-hour')
+        .setDescription('Start hour (24h)')
+        .setRequired(true)
+        .addChoices(...CALENDAR_HOUR_CHOICES))
     .addStringOption(option =>
-      option.setName('end-time')
-        .setDescription('End time (HH:mm, 24h)')
-        .setRequired(true))
+      option.setName('start-minute')
+        .setDescription('Start minutes')
+        .setRequired(true)
+        .addChoices(...CALENDAR_MINUTE_CHOICES))
+    .addStringOption(option =>
+      option.setName('end-hour')
+        .setDescription('End hour (24h)')
+        .setRequired(true)
+        .addChoices(...CALENDAR_HOUR_CHOICES))
+    .addStringOption(option =>
+      option.setName('end-minute')
+        .setDescription('End minutes')
+        .setRequired(true)
+        .addChoices(...CALENDAR_MINUTE_CHOICES))
     .addStringOption(option =>
       option.setName('type')
         .setDescription('Event type')
@@ -444,15 +598,15 @@ export const commands = [
           { name: 'SA', value: 'SA' }
         ))
     .addStringOption(option =>
-      option.setName('sr')
-        .setDescription('Average rank')
+      option.setName('rank-tier')
+        .setDescription('Average rank — tier (both tier + division to update rank)')
         .setRequired(false)
-        .addChoices(
-          { name: 'Champion 1', value: 'Champion 1' },
-          { name: 'Grandmaster 1', value: 'Grandmaster 1' },
-          { name: 'Master 1', value: 'Master 1' },
-          { name: 'Diamond 1', value: 'Diamond 1' }
-        ))
+        .addChoices(...OW_RANK_TIER_CHOICES))
+    .addStringOption(option =>
+      option.setName('rank-division')
+        .setDescription('Division: 1 = top of tier, 5 = bottom (use with rank-tier)')
+        .setRequired(false)
+        .addChoices(...OW_RANK_DIVISION_CHOICES))
     .addStringOption(option =>
       option.setName('faceit-div')
         .setDescription('FaceIT division')
@@ -476,5 +630,28 @@ export const commands = [
     .addStringOption(option =>
       option.setName('comment')
         .setDescription('Optional comment')
-        .setRequired(false))
+        .setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('set-summary-channel')
+    .setDescription('Configure automatic daily/weekly event summaries in a channel (Manager only)')
+    .addChannelOption(option =>
+      option.setName('channel')
+        .setDescription('Channel to post summaries in')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('frequency')
+        .setDescription('How often to post')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Daily (every morning)', value: 'daily' },
+          { name: 'Weekly (every Monday)', value: 'weekly' },
+          { name: 'Off (disable)', value: 'off' }
+        )),
+  new SlashCommandBuilder()
+    .setName('set-reminder-channel')
+    .setDescription('Set a channel for event reminder announcements (Manager only)')
+    .addChannelOption(option =>
+      option.setName('channel')
+        .setDescription('Channel for reminder messages (leave empty to disable)')
+        .setRequired(false)),
 ].map(c => c.toJSON());

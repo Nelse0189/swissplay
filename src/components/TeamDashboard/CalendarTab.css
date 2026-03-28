@@ -35,6 +35,44 @@
   color: #ffffff;
 }
 
+.calendar-pick-day-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--color-text, #fff);
+  background: rgba(var(--color-accent-rgb, 114, 137, 218), 0.15);
+  border: 1px solid rgba(var(--color-accent-rgb, 114, 137, 218), 0.45);
+  border-radius: 6px;
+}
+
+.calendar-pick-day-cancel {
+  background: transparent;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.25));
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.85));
+  padding: 0.35rem 0.75rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.calendar-pick-day-cancel:hover {
+  border-color: var(--color-accent, #7289da);
+  color: var(--color-text, #fff);
+}
+
+.calendar-wrapper-pick-day {
+  outline: 2px solid rgba(var(--color-accent-rgb, 114, 137, 218), 0.5);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 .calendar-loading {
   text-align: center;
   padding: 3rem;
@@ -224,80 +262,29 @@
   color: #ffffff;
 }
 
-/* Calendar Event Form Modal - explicit light theme to avoid white-on-white in dark mode */
+/* Calendar Event Form Modal — match site dark theme */
 .calendar-event-form-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 2rem;
+  padding: 1.5rem;
 }
 
 .calendar-event-form-modal {
-  background: #fff;
-  border: 1px solid rgba(26, 26, 26, 0.2);
-  max-width: 560px;
+  background: var(--color-background-card, #1a1f2e);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  max-width: min(520px, 100%);
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  color: #1a1a1a;
-}
-
-/* Override theme variables so all child elements use dark text on white */
-.calendar-event-form-modal,
-.calendar-event-form-modal * {
-  color: #1a1a1a !important;
-}
-
-.calendar-event-form-modal .form-group label,
-.calendar-event-form-modal .reminder-checkbox,
-.calendar-event-form-modal .reminder-checkbox span {
-  color: #1a1a1a !important;
-}
-
-.calendar-event-form-modal input.custom-input,
-.calendar-event-form-modal textarea.custom-input,
-.calendar-event-form-modal input.custom-input::placeholder,
-.calendar-event-form-modal textarea.custom-input::placeholder {
-  color: #1a1a1a !important;
-  background-color: #f8f9fa !important;
-  border-color: #dee2e6 !important;
-}
-
-.calendar-event-form-modal input.custom-input::placeholder,
-.calendar-event-form-modal textarea.custom-input::placeholder {
-  color: #6c757d !important;
-}
-
-.calendar-event-form-modal .custom-dropdown .dropdown-header,
-.calendar-event-form-modal .custom-dropdown .selected-value {
-  color: #1a1a1a !important;
-  background-color: #f8f9fa !important;
-  border-color: #dee2e6 !important;
-}
-
-.calendar-event-form-modal .add-cover-btn,
-.calendar-event-form-modal .remove-cover-btn {
-  color: #495057 !important;
-}
-
-.calendar-event-form-modal .add-cover-btn:hover:not(:disabled),
-.calendar-event-form-modal .remove-cover-btn:hover {
-  color: #1a1a1a !important;
-}
-
-/* Keep buttons readable - save has dark bg, delete has red text */
-.calendar-event-form-modal .form-actions .save-btn {
-  color: #fff !important;
-}
-.calendar-event-form-modal .form-actions .btn-delete {
-  color: #c00 !important;
-}
-.calendar-event-form-modal .form-actions .btn-delete:hover {
-  color: #fff !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  color: var(--color-text, #fff);
 }
 
 .calendar-event-form-header {
@@ -305,28 +292,28 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(26, 26, 26, 0.1);
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
 }
 
 .calendar-event-form-header h3 {
   margin: 0;
   font-family: 'Share Tech Mono', monospace;
   font-size: 1.2rem;
-  color: #1a1a1a;
+  color: var(--color-text, #fff);
 }
 
-.form-close-btn {
+.calendar-event-form-modal .form-close-btn {
   background: none;
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.65));
   padding: 0 0.25rem;
   line-height: 1;
 }
 
-.form-close-btn:hover {
-  color: #1a1a1a;
+.calendar-event-form-modal .form-close-btn:hover {
+  color: var(--color-text, #fff);
 }
 
 .calendar-event-form-body {
@@ -342,7 +329,7 @@
   margin-bottom: 0.5rem;
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.85rem;
-  color: #1a1a1a;
+  color: var(--color-text, #fff);
   font-weight: bold;
 }
 
@@ -354,12 +341,59 @@
 
 .calendar-event-form-body .form-row .form-group {
   flex: 1;
-  min-width: 140px;
+  min-width: min(100%, 200px);
 }
 
 .calendar-event-form-body .form-group.flex-1 {
   flex: 1;
-  min-width: 200px;
+  min-width: min(100%, 200px);
+}
+
+.calendar-event-form-readonly-date {
+  margin: 0 0 1rem;
+  padding: 0.65rem 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  color: var(--color-text, #fff);
+  background: var(--color-background-light, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+}
+
+.calendar-event-form-time-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-event-form-time-row {
+  margin-bottom: 0;
+}
+
+.calendar-event-form-time-input {
+  max-width: 100%;
+  width: 100%;
+}
+
+.calendar-event-form-time-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.55));
+  line-height: 1.4;
+}
+
+.calendar-event-form-datetime-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.calendar-event-form-datetime-block .datetime-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
 }
 
 .datetime-inputs {
@@ -369,6 +403,7 @@
 
 .datetime-inputs input {
   flex: 1;
+  min-width: 0;
 }
 
 .cover-image-row {
@@ -386,38 +421,38 @@
   max-width: 120px;
   max-height: 80px;
   object-fit: cover;
-  border: 1px solid rgba(26, 26, 26, 0.2);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
 }
 
-.remove-cover-btn {
+.calendar-event-form-modal .remove-cover-btn {
   display: block;
   margin-top: 0.25rem;
   background: none;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.25));
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.75));
 }
 
-.remove-cover-btn:hover {
-  color: #1a1a1a;
-  border-color: #1a1a1a;
+.calendar-event-form-modal .remove-cover-btn:hover {
+  color: var(--color-text, #fff);
+  border-color: var(--color-accent, #7289da);
 }
 
-.add-cover-btn {
-  background: rgba(26, 26, 26, 0.05);
-  border: 1px dashed rgba(26, 26, 26, 0.3);
+.calendar-event-form-modal .add-cover-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--color-border, rgba(255, 255, 255, 0.28));
   padding: 0.5rem 1rem;
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.85rem;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.75));
 }
 
-.add-cover-btn:hover:not(:disabled) {
-  border-color: #1a1a1a;
-  color: #1a1a1a;
+.calendar-event-form-modal .add-cover-btn:hover:not(:disabled) {
+  border-color: var(--color-accent, #7289da);
+  color: var(--color-text, #fff);
 }
 
 .reminders-row {
@@ -426,14 +461,14 @@
   gap: 1rem;
 }
 
-.reminder-checkbox {
+.calendar-event-form-modal .reminder-checkbox {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.85rem;
   cursor: pointer;
-  color: #1a1a1a;
+  color: var(--color-text, #fff);
 }
 
 .form-actions {
@@ -442,7 +477,7 @@
   align-items: center;
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(26, 26, 26, 0.1);
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
 }
 
 .form-actions-right {
@@ -450,52 +485,58 @@
   gap: 0.5rem;
 }
 
-.form-actions .btn-delete {
+.calendar-event-form-modal .form-actions .btn-delete {
   background: none;
-  border: 1px solid #c00;
-  color: #c00;
+  border: 1px solid rgba(244, 67, 54, 0.7);
+  color: #f44336;
   padding: 0.5rem 1rem;
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.9rem;
   cursor: pointer;
 }
 
-.form-actions .btn-delete:hover {
-  background: #c00;
+.calendar-event-form-modal .form-actions .btn-delete:hover {
+  background: rgba(244, 67, 54, 0.2);
+  color: #ff7961;
+}
+
+.calendar-event-form-modal .form-actions .btn-cancel {
+  background: transparent;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.3));
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.85));
+  padding: 0.5rem 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.calendar-event-form-modal .form-actions .btn-cancel:hover {
+  border-color: var(--color-text, #fff);
+  color: var(--color-text, #fff);
+}
+
+.calendar-event-form-modal .form-actions .save-btn {
+  background: var(--color-accent, #7289da);
   color: #fff;
-}
-
-.form-actions .btn-cancel {
-  background: none;
-  border: 1px solid #666;
-  color: #666;
+  border: 1px solid var(--color-accent, #7289da);
   padding: 0.5rem 1rem;
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.9rem;
   cursor: pointer;
 }
 
-.form-actions .btn-cancel:hover {
-  border-color: #1a1a1a;
-  color: #1a1a1a;
+.calendar-event-form-modal .form-actions .save-btn:hover:not(:disabled) {
+  background: rgba(var(--color-accent-rgb, 114, 137, 218), 0.85);
+  border-color: var(--color-accent, #7289da);
 }
 
-.form-actions .save-btn {
-  background: #1a1a1a;
-  color: #fff;
-  border: 1px solid #1a1a1a;
-  padding: 0.5rem 1rem;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.form-actions .save-btn:hover:not(:disabled) {
-  background: #333;
-  border-color: #333;
-}
-
-.form-actions .save-btn:disabled {
-  opacity: 0.6;
+.calendar-event-form-modal .form-actions .save-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Inputs inside modal: use global .custom-input dark styles; ensure time/date pickers stay readable */
+.calendar-event-form-modal input.custom-input,
+.calendar-event-form-modal textarea.custom-input {
+  color-scheme: dark;
 }

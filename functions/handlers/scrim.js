@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { getManagerTeams, ensureTeamLinkedToGuild } from '../lib/firebase-helpers.js';
+import { getManagerTeams, ensureTeamLinkedToGuild, getTeamsForDiscordMember } from '../lib/firebase-helpers.js';
 import { parseScrimTimeCSV, isValidScrimTimeCSV } from '../lib/scrim-parser.js';
 import * as discordApi from '../discordApi.js';
 
@@ -424,10 +424,9 @@ export async function handleUploadScrimSlash(interaction) {
   }
   const scrimData = parseScrimTimeCSV(content);
   const db = getFirestore();
-  const teamsSnapshot = await db.collection('teams').get();
-  const userTeam = teamsSnapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() }))
-    .find(t => t.members?.some(m => m.discordId === interaction.user.id));
+  const guildId = interaction.guild?.id ?? null;
+  const memberTeams = await getTeamsForDiscordMember(db, interaction.user.id, guildId);
+  const userTeam = memberTeams[0];
   if (!userTeam) {
     await interaction.followUp({ content: '❌ You must have your Discord linked to a team. Ask your manager to add you via /add-player, or verify via the website (Team Management → Settings).' });
     return;

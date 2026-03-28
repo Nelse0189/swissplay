@@ -115,6 +115,7 @@ const FreeAgents = () => {
       const managedTeams = teamsSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(t => {
+          if (t.deprecated) return false;
           if (t.ownerId == uid) return true;  // loose eq for Firestore type mismatch
           if (userDiscordId && t.managerDiscordIds?.some(id => String(id) === String(userDiscordId))) return true;
           if (t.memberUids?.includes(uid)) {
@@ -600,7 +601,7 @@ const FreeAgents = () => {
                       <div className="agent-card-left">
                         <div className="agent-avatar-wrap">
                           <img
-                            src={agent.photoURL || '/default-avatar.png'}
+                            src={agent.photoURL || '/default-avatar.svg'}
                             alt={agent.listingType === 'team' ? agent.teamName : agent.displayName}
                             onError={(e) => {
                               e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI0MCIgY3k9IjQwIiByPSI0MCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PHBhdGggZD0iTTQwIDI0YzguODM3IDAgMTYgNy4xNjMgMTYgMTZzLTcuMTYzIDE2LTE2IDE2LTE2LTcuMTYzLTE2LTE2IDcuMTYzLTE2IDE2LTE2ek00MCA0OGMtMTMuMjU1IDAtMjQgOC45MzctMjQgMjBoNDhjMC0xMS4wNjMtMTAuNzQ1LTIwLTI0LTIweiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjUpIi8+PC9zdmc+';

@@ -78,7 +78,7 @@
 
 .form-group textarea {
   resize: vertical;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .form-hint {
@@ -231,7 +231,7 @@
 }
 
 .section-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.9rem;
   color: var(--color-text-secondary);
   margin-bottom: 1rem;

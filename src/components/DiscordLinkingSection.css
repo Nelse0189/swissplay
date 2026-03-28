@@ -56,7 +56,7 @@
 }
 
 .discord-linking-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.9rem;
   color: var(--color-text-secondary);
   margin-bottom: 0.5rem;
@@ -98,4 +98,20 @@
   background: rgba(0, 0, 0, 0.3);
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+.discord-verification-copy-btn {
+  margin-top: 0.75rem;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  background: rgba(114, 137, 218, 0.3);
+  border: 1px solid rgba(114, 137, 218, 0.5);
+  border-radius: 4px;
+  color: #7289da;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.discord-verification-copy-btn:hover {
+  background: rgba(114, 137, 218, 0.4);
 }

@@ -23,6 +23,14 @@
         { "fieldPath": "teamId", "order": "ASCENDING" },
         { "fieldPath": "scrimRequestId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "availabilityRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" },
+        { "fieldPath": "pollActive", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

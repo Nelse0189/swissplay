@@ -14,8 +14,8 @@ export async function handleAddEventSlash(interaction) {
   const title = interaction.options.getString('title');
   const eventType = interaction.options.getString('type') || 'scrim';
   const dateStr = interaction.options.getString('date');
-  const startTime = interaction.options.getString('start-time');
-  const endTime = interaction.options.getString('end-time');
+  const startTime = `${interaction.options.getString('start-hour')}:${interaction.options.getString('start-minute')}`;
+  const endTime = `${interaction.options.getString('end-hour')}:${interaction.options.getString('end-minute')}`;
   const recurrence = interaction.options.getString('recurrence');
 
   const db = admin.firestore();
@@ -64,7 +64,7 @@ export async function handleAddEventSlash(interaction) {
       createdAt: new Date(),
       updatedAt: new Date(),
       remindersSent: {},
-      reminders: [15, 60, 1440],
+      reminders: [60],
       colorEmoji: EVENT_EMOJI[eventType] || '📌'
     };
 

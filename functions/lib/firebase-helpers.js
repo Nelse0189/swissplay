@@ -4,32 +4,46 @@ function getFirestore() {
   return admin.firestore();
 }
 
-export async function getTeamByManagerDiscordId(discordId) {
-  const db = getFirestore();
-  try {
-    const teamsRef = db.collection('teams');
-    try {
-      const optimizedSnapshot = await teamsRef.where('managerDiscordIds', 'array-contains', discordId).limit(1).get();
-      if (!optimizedSnapshot.empty) {
-        const teamDoc = optimizedSnapshot.docs[0];
-        const teamData = teamDoc.data();
-        return { id: teamDoc.id, ...teamData, members: teamData.members || [] };
-      }
-    } catch (_) {}
-    const snapshot = await teamsRef.get();
-    for (const doc of snapshot.docs) {
-      const team = { id: doc.id, ...doc.data() };
-      if (!team.members?.length) continue;
-      const manager = team.members.find(m => m.discordId === discordId && m.roles && (m.roles.includes('Manager') || m.roles.includes('Owner')));
-      if (manager) return team;
-    }
-    return null;
-  } catch (error) {
-    console.error('getTeamByManagerDiscordId:', error);
-    throw error;
+/** Discord IDs on the team roster — used for `array-contains` lookups (no full collection scans). */
+export function syncMemberDiscordIdsFromMembers(members = []) {
+  const ids = new Set();
+  for (const m of members || []) {
+    if (m?.discordId != null && m.discordId !== '') ids.add(String(m.discordId));
   }
+  return [...ids];
 }
 
+/**
+ * Teams this Discord user is on (member with discordId). Uses memberDiscordIds index when present.
+ * @param {FirebaseFirestore.Firestore} db
+ * @param {string} discordUserId
+ * @param {string|null} guildId - if set, prefer teams linked to this guild
+ */
+export async function getTeamsForDiscordMember(db, discordUserId, guildId = null) {
+  const did = String(discordUserId);
+  let snap;
+  try {
+    snap = await db.collection('teams').where('memberDiscordIds', 'array-contains', did).get();
+  } catch (e) {
+    console.warn('getTeamsForDiscordMember: indexed query failed:', e.message);
+    snap = { docs: [], empty: true };
+  }
+  let teams = snap.docs.map(d => ({ id: d.id, ...d.data(), members: d.data().members || [] }));
+
+  if (teams.length === 0) {
+    const all = await db.collection('teams').get();
+    teams = all.docs
+      .map(doc => ({ id: doc.id, ...doc.data(), members: doc.data().members || [] }))
+      .filter(t => t.members?.some(m => String(m.discordId) === did));
+  }
+  if (guildId && teams.length > 0) {
+    teams = teams.filter(t => !t.discordGuildId || String(t.discordGuildId) === String(guildId));
+  }
+
+  return teams;
+}
+
+/** Teams this Discord user can manage (managerDiscordIds or Firestore owner). Excludes deprecated teams (same as the website). */
 export async function getManagerTeams(db, discordId) {
   try {
     const teamMap = new Map();
@@ -41,7 +55,11 @@ export async function getManagerTeams(db, discordId) {
       db.collection('users').where('discordId', '==', discordIdStr).get(),
     ]);
 
-    byManagerDiscord.docs.forEach(d => teamMap.set(d.id, { id: d.id, ...d.data() }));
+    byManagerDiscord.docs.forEach(d => {
+      const data = d.data();
+      if (data.deprecated) return;
+      teamMap.set(d.id, { id: d.id, ...data });
+    });
 
     // For each user found, look up their owned teams — run all in parallel
     const ownerQueries = usersSnapshot.docs.map(userDoc =>
@@ -51,6 +69,7 @@ export async function getManagerTeams(db, discordId) {
     for (const snap of ownerResults) {
       for (const d of snap.docs) {
         const team = { id: d.id, ...d.data() };
+        if (team.deprecated) continue;
         teamMap.set(d.id, team);
         // Backfill managerDiscordIds so future lookups skip the users query entirely
         const mids = team.managerDiscordIds || [];
@@ -66,6 +85,29 @@ export async function getManagerTeams(db, discordId) {
   } catch (error) {
     console.error('getManagerTeams:', error);
     return [];
+  }
+}
+
+/** First team where this Discord user is Manager/Owner (parallel queries; avoids full collection scan). */
+export async function getTeamByManagerDiscordId(discordId) {
+  const db = getFirestore();
+  const discordIdStr = String(discordId);
+  try {
+    const teams = await getManagerTeams(db, discordIdStr);
+    if (!teams.length) return null;
+    const asManager = teams.find(
+      t =>
+        t.members?.some(
+          m =>
+            String(m.discordId) === discordIdStr &&
+            m.roles &&
+            (m.roles.includes('Manager') || m.roles.includes('Owner'))
+        )
+    );
+    return asManager || teams[0];
+  } catch (error) {
+    console.error('getTeamByManagerDiscordId:', error);
+    throw error;
   }
 }
 
@@ -119,4 +161,11 @@ export async function getUserByDiscordId(discordId) {
     console.error('Error in getUserByDiscordId:', error);
     return null;
   }
+}
+
+/** All teams (for scrim discovery, etc.) */
+export async function getAllTeams() {
+  const db = getFirestore();
+  const snapshot = await db.collection('teams').get();
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }

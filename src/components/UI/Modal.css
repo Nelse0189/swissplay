@@ -179,7 +179,7 @@
 }
 
 .modal-message {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary);
   line-height: 1.7;

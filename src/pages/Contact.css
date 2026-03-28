@@ -60,7 +60,7 @@
 }
 
 .info-card p {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1rem 0;
@@ -133,7 +133,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;
@@ -143,7 +143,7 @@
 .discord-ticket-steps {
   margin: 0;
   padding-left: 1.5rem;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   line-height: 1.8;
@@ -208,7 +208,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -216,7 +216,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -277,7 +277,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin-bottom: 1.5rem;
@@ -285,7 +285,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 1.25rem;
@@ -347,7 +347,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.85));
   margin-bottom: 1.5rem;
@@ -355,7 +355,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 1.25rem;
@@ -437,7 +437,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.85));
   margin: 0;
@@ -445,7 +445,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -546,7 +546,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1.5rem 0;
@@ -554,7 +554,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 0;
@@ -622,7 +622,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;
@@ -630,7 +630,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -693,7 +693,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1.5rem 0;
@@ -701,7 +701,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 0;
@@ -769,7 +769,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -777,7 +777,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -837,7 +837,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1.5rem 0;
@@ -845,7 +845,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 0;
   padding-left: 1.5rem;
@@ -907,7 +907,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin-bottom: 1.5rem;
@@ -915,7 +915,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 1.25rem;
@@ -983,7 +983,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;
@@ -991,7 +991,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
   padding-left: 1.5rem;
@@ -1054,7 +1054,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin-bottom: 1.5rem;
@@ -1062,7 +1062,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1.5rem 1.5rem;
   padding-left: 0.5rem;
@@ -1122,7 +1122,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 0;
   line-height: 1.6;
@@ -1132,7 +1132,7 @@
   margin: 0 0 1.5rem 1.25rem;
   padding: 0;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.8;
 }
 
@@ -1194,7 +1194,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -1202,7 +1202,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0;
@@ -1261,7 +1261,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin-bottom: 1.5rem;
@@ -1269,7 +1269,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin-bottom: 1.5rem;
@@ -1328,7 +1328,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.85));
   margin: 0 0 1.5rem 0;
@@ -1339,7 +1339,7 @@
   margin: 0 0 2rem 0;
   padding-left: 1.5rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   line-height: 2;
 }
@@ -1395,7 +1395,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1.5rem 0;
@@ -1403,7 +1403,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 0;
@@ -1466,7 +1466,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin-bottom: 1.5rem;
@@ -1474,7 +1474,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 1.5rem;
@@ -1545,7 +1545,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin-bottom: 1.5rem;
@@ -1556,7 +1556,7 @@
   margin: 0 0 1.5rem 1.5rem;
   padding: 0;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.8;
 }
 
@@ -1613,7 +1613,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin-bottom: 1.5rem;
@@ -1621,7 +1621,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1.5rem 1.5rem;
@@ -1656,7 +1656,7 @@
 }
 
 .discord-ticket-desc {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 1.5rem 0;
@@ -1664,7 +1664,7 @@
 }
 
 .discord-ticket-steps {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.8));
   margin: 0 0 2rem 0;
@@ -1723,7 +1723,7 @@
 
 .form-group textarea {
   resize: vertical;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .form-actions {

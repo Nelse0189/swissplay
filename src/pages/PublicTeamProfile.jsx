@@ -230,7 +230,7 @@ const PublicTeamProfile = () => {
                     <div key={member.uid || idx} className="player-item">
                       <div className="player-item-header">
                         <img 
-                          src={member.photoURL || '/default-avatar.png'} 
+                          src={member.photoURL || '/default-avatar.svg'} 
                           alt={member.name}
                           className="player-avatar-small"
                           onError={(e) => {

@@ -52,9 +52,10 @@ Then update `index.js` to use `defineSecret` for the token.
 When using Firebase Functions (no running Node instance), run the registration script whenever you add or change slash commands:
 
 ```bash
-cd discord-bot
-cp .env.example .env   # if needed; fill in DISCORD_TOKEN, DISCORD_CLIENT_ID
-node register-commands.js
+cd functions
+npm install   # ensures devDependency dotenv for local registration
+# Ensure .env has DISCORD_TOKEN, DISCORD_CLIENT_ID (and optional DISCORD_GUILD_ID)
+npm run register-commands
 ```
 
 - **DISCORD_TOKEN** – bot token from Discord Developer Portal  
@@ -67,14 +68,10 @@ node register-commands.js
 firebase deploy --only functions
 ```
 
-## Important: Disable the Cloud Run bot
+## Notes
 
-Once this is working, **stop the Cloud Run deployment** so you don't have two bots responding. You can delete the Cloud Run service or set `min-instances` to 0.
-
-## Limitations vs. Cloud Run bot
-
-- **Availability setting**: Users set availability via a **dropdown** with presets (e.g. "Weekdays 6-10pm", "Weekends anytime") when they run `/my-availability`. A "Custom" option opens a modal for free-text input. Works in DMs and servers.
-- **Verification by username**: The Firestore trigger only sends DMs for **manager verification** (when we have the manager's Discord ID from the team). Username-based verification (invites) requires the gateway to search guild members; that flow is not supported in HTTP-only mode.
+- **Availability**: `/my-availability` uses a dropdown with presets; "Custom" opens a modal for free text.
+- **Verification**: Manager verification uses the manager's linked Discord ID. Username-based lookup uses guild member search when the bot has seen the server (via any interaction).
 
 ## Functions deployed
 
@@ -82,4 +79,12 @@ Once this is working, **stop the Cloud Run deployment** so you don't have two bo
 |----------|------|-------------|
 | `discordInteractions` | HTTP | Receives all Discord interactions (slash commands, buttons, select menus) |
 | `onVerificationCreated` | Firestore | Sends verification DMs when new verification docs are created |
-| `scrimReminders` | Scheduled | Sends 24h and 1h scrim reminders (runs every 5 min) |
+| `onScrimRequestUpdated` | Firestore | Creates calendar events when a scrim request is accepted |
+| `onCalendarEventWritten` | Firestore | Syncs `calendarEvents` to Discord Scheduled Events |
+| `scrimReminders` | Scheduled | 24h / 1h scrim poll reminders (every 5 min) |
+| `scheduleCarryOverReminders` | Scheduled | Weekly manager DM for schedule carry-over |
+| `dailyEventSummary` | Scheduled | Posts daily event summary to configured channel |
+| `weeklyEventSummary` | Scheduled | Posts weekly event summary to configured channel |
+| `calendarDmReminders` | Scheduled | Event reminder DMs to linked team members |
+| `calendarChannelReminders` | Scheduled | Event reminders to team reminder channel |
+| `autoStartDiscordEvents` | Scheduled | Auto start/end Discord scheduled events |

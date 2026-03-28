@@ -69,7 +69,7 @@
 }
 
 .faq-answer {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;

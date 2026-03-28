@@ -30,10 +30,6 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
   const [imageToCrop, setImageToCrop] = useState(null);
   const [originalFile, setOriginalFile] = useState(null);
   const fileInputRef = useRef(null);
-  // Discord invite state (for inviting new players)
-  const [inviteDiscordUsername, setInviteDiscordUsername] = useState('');
-  const [isInviting, setIsInviting] = useState(false);
-  
   // Discord linking state (for self)
   const [discordUsername, setDiscordUsername] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -214,63 +210,19 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
     });
   };
 
-  const handleInvite = async (e) => {
-    e.preventDefault();
-    if (!inviteDiscordUsername.trim()) {
-      toast.error('Please enter a Discord username');
-      return;
-    }
-    
-    setIsInviting(true);
-    
-    try {
-      const code = generateVerificationCode();
-      const currentUser = auth.currentUser;
-      
-      // Clean username (remove # discriminator if present)
-      const cleanUsername = inviteDiscordUsername.split('#')[0].trim();
-      
-      // Create invite verification document
-      await setDoc(doc(db, 'discordVerifications', code), {
-        discordUsername: cleanUsername,
-        teamId: team.id,
-        teamName: team.name,
-        status: 'pending',
-        createdAt: new Date(),
-        dmSent: false,
-        isInvite: true, // Mark as invite (not linking existing member)
-        invitedBy: currentUser.uid,
-        invitedByName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Manager'
-      });
-      
-      // Clear form
-      setInviteDiscordUsername('');
-      
-      // Refresh pending verifications
-      const verificationsRef = collection(db, 'discordVerifications');
-      const q = query(
-        verificationsRef,
-        where('teamId', '==', team.id),
-        where('status', '==', 'pending')
-      );
-      const snapshot = await getDocs(q);
-      const pending = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setPendingVerifications(pending);
-      
-      toast.success(`Invite sent to ${cleanUsername}. They will be added to the roster when they accept the Discord DM.`);
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      toast.error('Failed to send invite. Please try again.');
-    } finally {
-      setIsInviting(false);
-    }
-  };
-  
   const generateVerificationCode = () => {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  };
+
+  const copyVerifyDiscordCommand = async () => {
+    if (!verificationCode) return;
+    const text = `/verify-discord code:${verificationCode}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Command copied to clipboard');
+    } catch {
+      toast.error('Could not copy automatically — select the command text instead');
+    }
   };
   
   const handleVerifyViaBot = async () => {
@@ -554,28 +506,8 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
           <div className="settings-section">
             <h3>INVITE OPERATIVES</h3>
             <p className="section-desc">
-              Invite players to join your team by Discord username. They will be added to the roster when they accept the confirmation DM. Make sure the Discord bot is invited to your server first.
+              Install the Swissplay bot in your Discord server using the invite link above. In that server, run <code style={{ color: 'var(--color-accent, #7289da)' }}>/add-player</code> (mention the player) to add them to your team roster.
             </p>
-          <form onSubmit={handleInvite} className="invite-form">
-            <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-              <input 
-                type="text" 
-                value={inviteDiscordUsername} 
-                onChange={(e) => setInviteDiscordUsername(e.target.value)}
-                placeholder="ENTER DISCORD USERNAME"
-                className="custom-input"
-                disabled={isInviting}
-              />
-            </div>
-            <button 
-              type="submit" 
-              className="invite-btn" 
-              style={{ marginTop: 0 }}
-              disabled={isInviting || !inviteDiscordUsername.trim()}
-            >
-              {isInviting ? 'SENDING INVITE...' : 'INVITE'}
-            </button>
-          </form>
           
           {pendingVerifications.filter(v => v.isInvite).length > 0 && (
             <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(255, 255, 0, 0.1)', borderRadius: '4px' }}>
@@ -726,6 +658,35 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
                 <p style={{ color: '#ccc', fontSize: '0.9rem', margin: 0, lineHeight: '1.6' }}>
                   Check your Discord DMs for a confirmation message from the bot. Click "✅ Confirm" to link your account.
                 </p>
+                {verificationCode && (
+                  <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                    <p style={{ color: '#999', fontSize: '0.85rem', margin: '0 0 0.5rem 0' }}>
+                      No DM? Paste this in any channel in a server with the Swissplay bot:
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+                      <code style={{ background: 'rgba(0,0,0,0.35)', padding: '6px 10px', borderRadius: '4px', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                        /verify-discord code:{verificationCode}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copyVerifyDiscordCommand}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '0.8rem',
+                          background: 'rgba(114, 137, 218, 0.3)',
+                          border: '1px solid rgba(114, 137, 218, 0.5)',
+                          borderRadius: '4px',
+                          color: '#7289da',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          flexShrink: 0
+                        }}
+                      >
+                        Copy command
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -753,9 +714,31 @@ const SettingsTab = ({ team, updateTeamSettings, currentUser }) => {
               <p style={{ color: '#ccc', fontSize: '0.85rem', margin: '0 0 0.25rem 0' }}>
                 1. Open Discord
               </p>
-              <p style={{ color: '#ccc', fontSize: '0.85rem', margin: '0 0 0.25rem 0' }}>
-                2. Run: <code style={{ background: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '3px' }}>/verify-discord code:{verificationCode}</code>
+              <p style={{ color: '#ccc', fontSize: '0.85rem', margin: '0 0 0.35rem 0' }}>
+                2. Run this command (or copy it):
               </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <code style={{ background: 'rgba(0,0,0,0.5)', padding: '6px 10px', borderRadius: '4px', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                  /verify-discord code:{verificationCode}
+                </code>
+                <button
+                  type="button"
+                  onClick={copyVerifyDiscordCommand}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    background: 'rgba(114, 137, 218, 0.3)',
+                    border: '1px solid rgba(114, 137, 218, 0.5)',
+                    borderRadius: '4px',
+                    color: '#7289da',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    flexShrink: 0
+                  }}
+                >
+                  Copy command
+                </button>
+              </div>
               <p style={{ color: '#ccc', fontSize: '0.85rem', margin: 0 }}>
                 3. Check your DMs and confirm
               </p>

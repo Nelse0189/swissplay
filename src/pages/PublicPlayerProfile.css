@@ -105,7 +105,7 @@
 }
 
 .bio-text {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary);
   line-height: 1.7;
@@ -191,7 +191,7 @@
 }
 
 .no-teams {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text-secondary);
   font-style: italic;
 }
@@ -213,7 +213,7 @@
 }
 
 .error-state p {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text-secondary);
   margin-bottom: 2rem;
 }

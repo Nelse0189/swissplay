@@ -5,15 +5,27 @@ import { getTeamByManagerDiscordId } from '../lib/firebase-helpers.js';
 const WEBSITE_URL = process.env.WEBSITE_URL || 'https://solaris-cd166.web.app';
 
 /**
- * Handle /team-settings - Manager updates team name, region, sr, faceit-div
+ * Handle /team-settings - Manager updates team name, region, average rank (tier + division), faceit-div
  */
 export async function handleTeamSettingsSlash(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const name = interaction.options.getString('name');
   const region = interaction.options.getString('region');
-  const sr = interaction.options.getString('sr');
+  const rankTier = interaction.options.getString('rank-tier');
+  const rankDivision = interaction.options.getString('rank-division');
   const faceitDiv = interaction.options.getString('faceit-div');
+
+  const hasTier = Boolean(rankTier);
+  const hasDiv = Boolean(rankDivision);
+  if (hasTier !== hasDiv) {
+    await interaction.editReply({
+      content:
+        '❌ To update average rank, set both **rank-tier** and **rank-division** (1 = highest in tier, 5 = lowest).',
+      ephemeral: true,
+    });
+    return;
+  }
 
   const db = admin.firestore();
 
@@ -30,12 +42,13 @@ export async function handleTeamSettingsSlash(interaction) {
     const updates = {};
     if (name?.trim()) updates.name = name.trim();
     if (region) updates.region = region;
-    if (sr) updates.sr = sr;
+    if (hasTier && hasDiv) updates.sr = `${rankTier} ${rankDivision}`;
     if (faceitDiv) updates.faceitDiv = faceitDiv;
 
     if (Object.keys(updates).length === 0) {
       await interaction.editReply({
-        content: '❌ No changes provided. Specify at least one of: name, region, sr, faceit-div.',
+        content:
+          '❌ No changes provided. Specify at least one of: name, region, rank-tier + rank-division, faceit-div.',
         ephemeral: true,
       });
       return;

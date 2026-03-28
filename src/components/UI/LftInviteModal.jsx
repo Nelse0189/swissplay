@@ -57,7 +57,7 @@ const LftInviteModal = ({ isOpen, onClose, agent, managerTeams, currentUser }) =
     onClose();
   };
 
-  const teamOptions = managerTeams.map(t => ({ value: t.id, label: t.name }));
+  const teamOptions = managerTeams.filter(t => !t.deprecated).map(t => ({ value: t.id, label: t.name }));
 
   return (
     <Modal

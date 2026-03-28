@@ -82,7 +82,7 @@
 }
 
 .faq-answer {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;
@@ -121,7 +121,7 @@
 }
 
 .link-card p {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.9rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;
@@ -163,7 +163,7 @@
 }
 
 .step-content p {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0;
@@ -174,7 +174,7 @@
 }
 
 .bot-setup-info > p {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin-bottom: 1.5rem;
@@ -198,7 +198,7 @@
 }
 
 .bot-install-card > p {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   margin: 0 0 1rem 0;
@@ -211,7 +211,7 @@
 }
 
 .bot-features li {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
   padding: 0.5rem 0;

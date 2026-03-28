@@ -104,6 +104,7 @@ const TeamManagement = () => {
       const teams = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(t => {
+          if (t.deprecated) return false;
           if (t.members?.some(m => m.uid == uid || String(m.uid) === uidStr)) return true;
           if (t.ownerId == uid || String(t.ownerId) === uidStr) return true;
           if (t.memberUids?.some(id => id == uid || String(id) === uidStr)) return true;
@@ -290,7 +291,7 @@ const TeamManagement = () => {
     return (
       <PageWrapper>
         <div className="create-team-container">
-          <h2>INITIATE TEAM PROTOCOL</h2>
+          <h2>CREATE YOUR TEAM</h2>
           <form onSubmit={handleCreateTeam}>
             <div className="form-group">
               <label>TEAM NAME</label>

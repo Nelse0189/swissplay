@@ -338,7 +338,7 @@ const EditProfile = () => {
               <div className="photo-upload-section">
                 <div className="photo-preview-container">
                   <img 
-                    src={photoPreview || '/default-avatar.png'} 
+                    src={photoPreview || '/default-avatar.svg'} 
                     alt="Profile" 
                     className="photo-preview"
                     onError={(e) => {

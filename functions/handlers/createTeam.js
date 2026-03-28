@@ -4,33 +4,41 @@ import { getUserByDiscordId } from '../lib/firebase-helpers.js';
 
 const WEBSITE_URL = process.env.WEBSITE_URL || 'https://solaris-cd166.web.app';
 
-const REGIONS = ['NA', 'EU', 'OCE', 'Asia', 'SA'];
-const FACEIT_DIVISIONS = ['OWCS', 'Masters', 'Advanced', 'Expert', 'Open'];
-const SR_OPTIONS = ['Champion 1', 'Champion 2', 'Champion 3', 'Champion 4', 'Champion 5',
-  'Grandmaster 1', 'Grandmaster 2', 'Grandmaster 3', 'Grandmaster 4', 'Grandmaster 5',
-  'Master 1', 'Master 2', 'Master 3', 'Master 4', 'Master 5',
-  'Diamond 1', 'Diamond 2', 'Diamond 3', 'Diamond 4', 'Diamond 5'];
-
-function generateAbbreviation(name) {
-  if (!name?.trim()) return '';
-  const words = name.trim().split(/\s+/);
-  if (words.length === 1) {
-    return name.substring(0, Math.min(4, name.length)).toUpperCase();
-  }
-  return words.map(w => w.charAt(0).toUpperCase()).join('');
-}
-
 /**
  * Handle /create-team - Create a new team (user must have linked Discord via web)
  */
 export async function handleCreateTeamSlash(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
-  const name = interaction.options.getString('name');
-  const abbreviation = interaction.options.getString('abbreviation') || generateAbbreviation(name);
-  const region = interaction.options.getString('region') || 'NA';
-  const sr = interaction.options.getString('sr') || 'Champion 1';
-  const faceitDiv = interaction.options.getString('faceit-div') || 'Open';
+  const name = interaction.options.getString('name')?.trim() || '';
+  const abbreviationRaw = interaction.options.getString('abbreviation')?.trim() || '';
+  const region = interaction.options.getString('region')?.trim() || '';
+  const rankTier = interaction.options.getString('rank-tier')?.trim() || '';
+  const rankDivision = interaction.options.getString('rank-division')?.trim() || '';
+  const faceitDiv = interaction.options.getString('faceit-div')?.trim() || '';
+  const sr =
+    rankTier && rankDivision ? `${rankTier} ${rankDivision}` : null;
+
+  if (!name) {
+    await interaction.editReply({ content: '❌ Please provide a team name.' });
+    return;
+  }
+  if (!abbreviationRaw) {
+    await interaction.editReply({ content: '❌ Please provide a team abbreviation.' });
+    return;
+  }
+  if (!region || !sr || !faceitDiv) {
+    const missing = [
+      !region && 'region',
+      !sr && 'rank-tier + rank-division',
+      !faceitDiv && 'faceit-div',
+    ].filter(Boolean);
+    await interaction.editReply({
+      content: `❌ Missing required fields: ${missing.join(', ')}.`,
+    });
+    return;
+  }
+  const abbreviation = abbreviationRaw;
 
   const db = admin.firestore();
 
@@ -63,7 +71,7 @@ export async function handleCreateTeamSlash(interaction) {
 
     const teamData = {
       name: name.trim(),
-      abbreviation: abbreviation.toUpperCase() || generateAbbreviation(name),
+      abbreviation: abbreviation.toUpperCase(),
       region,
       sr,
       faceitDiv,

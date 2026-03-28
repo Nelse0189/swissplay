@@ -49,6 +49,7 @@ const Header = () => {
       const uidStr = String(uid);
 
       const teamsData = allTeams.filter(t => {
+        if (t.deprecated) return false;
         if (t.members?.some(m => m.uid == uid || String(m.uid) === uidStr)) return true;
         if (t.ownerId == uid || String(t.ownerId) === uidStr) return true;
         if (t.memberUids?.some(id => id == uid || String(id) === uidStr)) return true;
@@ -262,11 +263,12 @@ const Header = () => {
             <Link to={userData?.username ? `/profile/${userData.username}` : '/profile'} className="user-profile-link">
               <div>
                 <img 
-                  src={userData?.photoURL || user.photoURL || '/default-avatar.png'} 
+                  src={userData?.photoURL || user.photoURL || '/default-avatar.svg'} 
                   alt="Profile" 
                   className="user-avatar"
                   onError={(e) => {
-                    e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9InJnYmEoMjU1LCAyNTUsIDI1NSwgMC4xKSIvPgo8cGF0aCBkPSJNMjAgMTJDMTYuNjgxMiAxMiAxNCAxNC42ODEyIDE0IDE4QzE0IDIxLjMxODggMTYuNjgxMiAyNCAyMCAyNEMyMy4zMTg4IDI0IDI2IDIxLjMxODggMjYgMThDMjYgMTQuNjgxMiAyMy4zMTg4IDEyIDIwIDEyWk0yMCAyOEMxNS41ODE1IDI4IDEyIDI5Ljc5MDkgMTIgMzJWNDBIMjhWMzJDMjggMjkuNzkwOSAyNC40MTg1IDI4IDIwIDI4WiIgZmlsbD0icmdiYSgyNTUsIDI1NSwgMjU1LCAwLjUpIi8+Cjwvc3ZnPg==';
+                    e.target.onerror = null;
+                    e.target.src = '/default-avatar.svg';
                   }}
                 />
               </div>

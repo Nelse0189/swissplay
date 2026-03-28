@@ -67,6 +67,17 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
     }
   };
 
+  const copyPendingVerifyCommand = async () => {
+    if (!pendingVerificationCode) return;
+    const text = `/verify-discord code:${pendingVerificationCode}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Command copied to clipboard');
+    } catch {
+      toast.error('Could not copy automatically — select the command text instead');
+    }
+  };
+
   if (linkedDiscordId) {
     return (
       <div className="discord-linked-section">
@@ -93,6 +104,13 @@ const DiscordLinkingSection = ({ user, showHeading = true }) => {
           <p>Check your Discord DMs for a verification message. If you didn&apos;t receive one, run{' '}
             <code>/verify-discord code:{pendingVerificationCode}</code> in the Swissplay Discord.
           </p>
+          <button
+            type="button"
+            className="discord-verification-copy-btn"
+            onClick={copyPendingVerifyCommand}
+          >
+            Copy command
+          </button>
         </div>
       )}
       <div className="form-group">

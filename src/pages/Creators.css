@@ -21,7 +21,7 @@
   font-size: 2.5rem;
   font-weight: 400;
   color: var(--color-text, #ffffff);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   margin: 0 0 1rem 0;
 }
 

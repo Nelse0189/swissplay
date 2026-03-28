@@ -63,6 +63,28 @@ function expandRecurringEvents(events, viewStart, viewEnd) {
   return expanded;
 }
 
+/**
+ * Month view day picks are usually midnight → next midnight (~24h). Replace with default evening times.
+ * Requires slot start at local midnight so week partial ranges are not mistaken for a day cell.
+ */
+function normalizeSlotForNewEvent(slot) {
+  if (!slot?.start || !slot?.end) return slot;
+  const st = slot.start instanceof Date ? slot.start : new Date(slot.start);
+  const et = slot.end instanceof Date ? slot.end : new Date(slot.end);
+  const durMs = et - st;
+  const h = 60 * 60 * 1000;
+  const startsMidnight =
+    st.getHours() === 0 && st.getMinutes() === 0 && st.getSeconds() === 0;
+  if (startsMidnight && durMs >= 21 * h && durMs <= 26 * h) {
+    const day = format(st, 'yyyy-MM-dd');
+    return {
+      start: parse(`${day} 19:00`, 'yyyy-MM-dd HH:mm', st),
+      end: parse(`${day} 21:00`, 'yyyy-MM-dd HH:mm', st)
+    };
+  }
+  return { start: st, end: et };
+}
+
 const CalendarTab = ({ team, canEditSettings }) => {
   const toast = useToast();
   const [events, setEvents] = useState([]);
@@ -70,6 +92,7 @@ const CalendarTab = ({ team, canEditSettings }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [awaitingCalendarDay, setAwaitingCalendarDay] = useState(false);
   const [date, setDate] = useState(() => new Date());
   const [view, setView] = useState('month');
 
@@ -120,6 +143,7 @@ const CalendarTab = ({ team, canEditSettings }) => {
       setShowForm(false);
       setEditingEvent(null);
       setSelectedSlot(null);
+      setAwaitingCalendarDay(false);
       loadEvents();
     } catch (error) {
       console.error('Error creating event:', error);
@@ -138,6 +162,7 @@ const CalendarTab = ({ team, canEditSettings }) => {
       setShowForm(false);
       setEditingEvent(null);
       setSelectedSlot(null);
+      setAwaitingCalendarDay(false);
       loadEvents();
     } catch (error) {
       console.error('Error updating event:', error);
@@ -152,6 +177,7 @@ const CalendarTab = ({ team, canEditSettings }) => {
       toast.success('Event deleted');
       setShowForm(false);
       setEditingEvent(null);
+      setAwaitingCalendarDay(false);
       loadEvents();
     } catch (error) {
       console.error('Error deleting event:', error);
@@ -160,9 +186,11 @@ const CalendarTab = ({ team, canEditSettings }) => {
   };
 
   const handleSelectSlot = ({ start, end }) => {
-    if (!canEditSettings) return;
-    setSelectedSlot({ start, end });
+    if (!canEditSettings || !awaitingCalendarDay) return;
+    const normalized = normalizeSlotForNewEvent({ start, end });
+    setSelectedSlot(normalized);
     setEditingEvent(null);
+    setAwaitingCalendarDay(false);
     setShowForm(true);
   };
 
@@ -171,6 +199,7 @@ const CalendarTab = ({ team, canEditSettings }) => {
     const ev = calEvent.resource || calEvent;
     setEditingEvent(ev);
     setSelectedSlot(null);
+    setAwaitingCalendarDay(false);
     setShowForm(true);
   };
 
@@ -193,16 +222,38 @@ const CalendarTab = ({ team, canEditSettings }) => {
       <div className="calendar-header">
         <h3>TEAM CALENDAR</h3>
         {canEditSettings && (
-          <button className="add-event-btn" onClick={() => { setSelectedSlot(null); setEditingEvent(null); setShowForm(true); }}>
+          <button
+            type="button"
+            className="add-event-btn"
+            onClick={() => {
+              setEditingEvent(null);
+              setSelectedSlot(null);
+              setShowForm(false);
+              setAwaitingCalendarDay(true);
+            }}
+          >
             + ADD EVENT
           </button>
         )}
       </div>
 
+      {canEditSettings && awaitingCalendarDay && (
+        <div className="calendar-pick-day-banner" role="status">
+          <span>Click a day on the calendar to add an event.</span>
+          <button
+            type="button"
+            className="calendar-pick-day-cancel"
+            onClick={() => setAwaitingCalendarDay(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="calendar-loading">Loading calendar...</div>
       ) : (
-        <div className="calendar-wrapper">
+        <div className={`calendar-wrapper${awaitingCalendarDay ? ' calendar-wrapper-pick-day' : ''}`}>
           <Calendar
             localizer={localizer}
             events={calendarEvents}
@@ -219,7 +270,7 @@ const CalendarTab = ({ team, canEditSettings }) => {
             onView={(newView) => setView(newView)}
             date={date}
             view={view}
-            selectable={canEditSettings}
+            selectable={canEditSettings && awaitingCalendarDay}
             eventPropGetter={eventStyleGetter}
             views={['month', 'week']}
           />
@@ -233,7 +284,12 @@ const CalendarTab = ({ team, canEditSettings }) => {
           initialSlot={selectedSlot}
           onSave={editingEvent ? (data) => handleUpdate(editingEvent.id, data) : handleCreate}
           onDelete={editingEvent ? () => handleDelete(editingEvent.id) : null}
-          onClose={() => { setShowForm(false); setEditingEvent(null); setSelectedSlot(null); }}
+          onClose={() => {
+            setShowForm(false);
+            setEditingEvent(null);
+            setSelectedSlot(null);
+            setAwaitingCalendarDay(false);
+          }}
         />
       )}
     </div>

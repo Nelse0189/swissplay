@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 import { EmbedBuilder } from 'discord.js';
-import { getPlayerByDiscordId } from '../lib/firebase-helpers.js';
+import { getPlayerByDiscordId, getTeamsForDiscordMember } from '../lib/firebase-helpers.js';
 import * as discordApi from '../discordApi.js';
 
 function getFirestore() {
@@ -250,10 +250,8 @@ function getFlexibleAvailabilityComponents(state = { days: [], start: null, end:
 export async function handleMyAvailabilitySlash(interaction) {
   const user = interaction.user;
   const db = getFirestore();
-  const teamsSnapshot = await db.collection('teams').get();
-  const userTeams = teamsSnapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(t => t.members?.some(m => m.discordId === user.id));
+  const guildId = interaction.guild?.id ?? null;
+  const userTeams = await getTeamsForDiscordMember(db, user.id, guildId);
   if (userTeams.length === 0) {
     await interaction.reply({
       content: '❌ You\'re not on any team. Ask a manager to add you using `/add-player`.',
@@ -402,10 +400,8 @@ async function applyAvailabilityToTeams(interaction, rangesOrSlots, availability
   await interaction.deferReply({ ephemeral: true });
   const userId = interaction.user.id;
   const db = getFirestore();
-  const teamsSnapshot = await db.collection('teams').get();
-  const userTeams = teamsSnapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(t => t.members?.some(m => m.discordId === userId));
+  const guildId = interaction.guild?.id ?? null;
+  const userTeams = await getTeamsForDiscordMember(db, userId, guildId);
 
   // Website uses slot strings ("Monday-18"); find-time uses ranges. Store slot strings for grid compatibility.
   const slotStrings = Array.isArray(rangesOrSlots) && rangesOrSlots.length > 0
@@ -454,9 +450,170 @@ export async function handleAvailabilityModalSubmit(interaction) {
   await applyAvailabilityToTeams(interaction, parsed, input);
 }
 
+/** Weekdays for poll reactions: 1️⃣ … 7️⃣ → Mon … Sun (matches website slot day names). */
+export const AVAILABILITY_POLL_WEEKDAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+export function keycapEmojiForIndex(i) {
+  return `${i + 1}\uFE0F\u20E3`;
+}
+
+export const AVAILABILITY_POLL_REACTION_DAYS = AVAILABILITY_POLL_WEEKDAYS.map((day, i) => ({
+  emoji: keycapEmojiForIndex(i),
+  day,
+}));
+
+function fullDaySlotStrings(day) {
+  const slots = [];
+  for (let h = 0; h <= 23; h++) slots.push(`${day}-${h}`);
+  return slots;
+}
+
+/**
+ * HTTP interactions do not receive reaction events; a scheduler calls this to read reactions via REST
+ * and update Firestore (team member availability + request summary).
+ */
+export async function syncAvailabilityReactionPolls(db) {
+  const snap = await db.collection('availabilityRequests').where('pollActive', '==', true).get();
+  if (snap.empty) return;
+
+  let me;
+  try {
+    me = await discordApi.discordFetch('/users/@me');
+  } catch (e) {
+    console.error('syncAvailabilityReactionPolls: @me failed', e.message);
+    return;
+  }
+  const botUserId = me?.id;
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const { channelId, messageId, teamId } = data;
+    if (!channelId || !messageId || !teamId) continue;
+
+    const exp = data.pollExpiresAt?.toDate?.() ?? (data.pollExpiresAt ? new Date(data.pollExpiresAt) : null);
+    if (exp && Date.now() > exp.getTime()) {
+      await doc.ref.update({ pollActive: false, pollEndedReason: 'expired' });
+      continue;
+    }
+
+    const teamRef = db.collection('teams').doc(teamId);
+    const teamDoc = await teamRef.get();
+    if (!teamDoc.exists) {
+      await doc.ref.update({ pollActive: false, pollEndedReason: 'team_missing' });
+      continue;
+    }
+    const team = { id: teamDoc.id, ...teamDoc.data() };
+
+    const dayToReactors = new Map();
+    let messageMissing = false;
+    for (const { emoji, day } of AVAILABILITY_POLL_REACTION_DAYS) {
+      try {
+        const users = await discordApi.listReactionUsers(channelId, messageId, emoji);
+        dayToReactors.set(
+          day,
+          users.filter(u => u.id !== botUserId && !u.bot)
+        );
+      } catch (e) {
+        if (e.message?.includes('404') || e.message?.includes('10008')) {
+          messageMissing = true;
+          break;
+        }
+        console.error(`syncAvailabilityReactionPolls reactions ${doc.id} ${day}:`, e.message);
+      }
+    }
+    if (messageMissing) {
+      await doc.ref.update({ pollActive: false, pollEndedReason: 'message_deleted' });
+      continue;
+    }
+
+    const discordIdToDays = new Map();
+    for (const { day } of AVAILABILITY_POLL_REACTION_DAYS) {
+      for (const u of dayToReactors.get(day) || []) {
+        if (!discordIdToDays.has(u.id)) discordIdToDays.set(u.id, new Set());
+        discordIdToDays.get(u.id).add(day);
+      }
+    }
+
+    const participantSet = new Set(data.pollParticipantIds || []);
+    for (const id of discordIdToDays.keys()) participantSet.add(id);
+    for (const id of participantSet) {
+      if (!discordIdToDays.has(id)) discordIdToDays.set(id, new Set());
+    }
+
+    const roster =
+      team.members?.filter(m => m.roles?.includes('Player') || m.roles?.includes('Coach')) || [];
+    const allWeek = new Set(AVAILABILITY_POLL_WEEKDAYS);
+    const responses = { ...(data.responses || {}) };
+    let members = [...(team.members || [])];
+    let teamTouched = false;
+
+    for (const discordUserId of participantSet) {
+      const desiredDays = discordIdToDays.get(discordUserId) || new Set();
+      const memberIndex = members.findIndex(m => String(m.discordId) === String(discordUserId));
+      if (memberIndex === -1) continue;
+
+      const m = members[memberIndex];
+      if (!m.roles?.includes('Player') && !m.roles?.includes('Coach')) continue;
+
+      const prevSlots = Array.isArray(m.availability) ? m.availability : [];
+      const stripped = prevSlots.filter(s => {
+        const d = String(s).split('-')[0];
+        return !allWeek.has(d);
+      });
+      const added = [];
+      for (const day of desiredDays) added.push(...fullDaySlotStrings(day));
+      const merged = [...new Set([...stripped, ...added])];
+
+      if (JSON.stringify(merged) !== JSON.stringify(prevSlots)) {
+        members[memberIndex] = { ...m, availability: merged };
+        teamTouched = true;
+      }
+
+      const availLabel =
+        desiredDays.size === 0
+          ? '— (no days selected)'
+          : [...desiredDays].sort((a, b) => AVAILABILITY_POLL_WEEKDAYS.indexOf(a) - AVAILABILITY_POLL_WEEKDAYS.indexOf(b)).join(', ');
+      responses[discordUserId] = {
+        playerName: m.name || m.discordUsername || 'Player',
+        playerUid: m.uid || null,
+        response: `📅 ${availLabel}`,
+        responseValue: desiredDays.size > 0,
+        availableDays: [...desiredDays],
+        respondedAt: new Date(),
+      };
+    }
+
+    await doc.ref.update({
+      responses,
+      pollParticipantIds: [...participantSet],
+      lastPollSyncAt: new Date(),
+    });
+
+    if (teamTouched) {
+      await teamRef.update({ members });
+    }
+  }
+}
 
 export async function handleAvailabilityRequestSlash(interaction) {
   await interaction.deferReply({ ephemeral: true });
+
+  if (!interaction.guild?.id) {
+    await interaction.editReply({
+      content:
+        '❌ Run `/request-availability` in a **server channel** (not DMs). The bot will post a message with weekday reactions there.',
+    });
+    return;
+  }
+
   const periodOption = interaction.options.getString('period');
   const playersOption = interaction.options.getString('players');
 
@@ -473,48 +630,98 @@ export async function handleAvailabilityRequestSlash(interaction) {
     playersOption.toLowerCase().includes('all') ||
     mentionedUserIds.length === 0;
 
-  const { getTeamByManagerDiscordId } = await import('../lib/firebase-helpers.js');
+  const { getTeamByManagerDiscordId, ensureTeamLinkedToGuild } = await import('../lib/firebase-helpers.js');
   const db = getFirestore();
   const team = await getTeamByManagerDiscordId(interaction.user.id);
   if (!team) {
-    await interaction.followUp({ content: '❌ You are not a manager of any team.', ephemeral: true });
+    await interaction.editReply({ content: '❌ You are not a manager of any team.' });
     return;
   }
+
+  await ensureTeamLinkedToGuild(db, team.id, interaction.guild.id);
 
   const allTeamPlayers =
     team.members?.filter(m => m.roles?.includes('Player') || m.roles?.includes('Coach')) || [];
 
-  let targetPlayers = allTeamPlayers.filter(p => p.discordId);
-  if (targetPlayers.length === 0) {
-    await interaction.followUp({
-      content: '❌ No players have linked their Discord accounts.',
-      ephemeral: true,
-    });
-    return;
-  }
+  const rosterDiscordIds = new Set(
+    allTeamPlayers.map(m => m.discordId).filter(Boolean).map(String)
+  );
 
   if (!sendToAll && mentionedUserIds.length > 0) {
-    targetPlayers = targetPlayers.filter(p => mentionedUserIds.includes(p.discordId));
-    if (targetPlayers.length === 0) {
-      await interaction.followUp({
+    const okMentions = mentionedUserIds.filter(id => rosterDiscordIds.has(id));
+    if (okMentions.length === 0) {
+      await interaction.editReply({
         content:
-          '❌ None of the mentioned players are linked to your team. They must link Discord from the website first.',
-        ephemeral: true,
+          '❌ None of the mentioned users are on your team roster with a known Discord account. Use `/add-player` to add them, or mention only team members.',
       });
       return;
     }
   }
 
-  const unlinkedIds = mentionedUserIds.filter(
-    id => !allTeamPlayers.some(p => p.discordId === id)
-  );
+  const unlinkedIds = mentionedUserIds.filter(id => !rosterDiscordIds.has(id));
   let warnNote = '';
   if (unlinkedIds.length > 0) {
-    warnNote = `\n⚠️ Skipped ${unlinkedIds.length} mention(s) not on your team.`;
+    warnNote = `\n⚠️ Skipped ${unlinkedIds.length} mention(s) not on your team (or no Discord on roster).`;
   }
 
   const timePeriod = periodOption || null;
-  const requestRef = await db.collection('availabilityRequests').add({
+  const channelId = interaction.channelId;
+
+  const prevPolls = await db
+    .collection('availabilityRequests')
+    .where('teamId', '==', team.id)
+    .where('pollActive', '==', true)
+    .get();
+  if (!prevPolls.empty) {
+    const closeBatch = db.batch();
+    for (const d of prevPolls.docs) {
+      closeBatch.update(d.ref, { pollActive: false, pollEndedReason: 'replaced_by_new_poll' });
+    }
+    await closeBatch.commit();
+  }
+
+  const pollExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const requestRef = db.collection('availabilityRequests').doc();
+  const requestId = requestRef.id;
+
+  const reactionLegend = AVAILABILITY_POLL_REACTION_DAYS.map(
+    ({ emoji, day }) => `${emoji} ${day}`
+  ).join('\n');
+
+  let pingLine = '';
+  if (!sendToAll && mentionedUserIds.length > 0) {
+    const pings = mentionedUserIds.filter(id => rosterDiscordIds.has(id)).map(id => `<@${id}>`);
+    if (pings.length) pingLine = `${pings.join(' ')}\n\n`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle('📅 Scrim availability — react with your free days')
+    .setDescription(
+      `${pingLine}` +
+        `**${team.name}** — react below with every day you can scrim (whole day; usual scrim time is assumed).\n\n` +
+        `${reactionLegend}\n\n` +
+        `_Remove a reaction to clear that day. Only roster players/coaches count._`
+    )
+    .setColor(0x5865f2)
+    .addFields(
+      { name: 'Window', value: timePeriod || '—', inline: true },
+      { name: 'Requested by', value: interaction.user.username, inline: true },
+      { name: 'Request ID', value: requestId, inline: true }
+    )
+    .setFooter({ text: 'Reactions sync to the team dashboard every ~2 minutes.' });
+
+  let message;
+  try {
+    message = await discordApi.sendMessage(channelId, { embeds: [discordApi.embedToApi(embed)] });
+  } catch (e) {
+    console.error('request-availability sendMessage:', e);
+    await interaction.editReply({
+      content: `❌ Could not post in this channel. Check the bot has **Send Messages** and **Add Reactions**.\n\n${e.message}`,
+    });
+    return;
+  }
+
+  await requestRef.set({
     teamId: team.id,
     managerDiscordId: interaction.user.id,
     managerName: interaction.user.username,
@@ -522,49 +729,34 @@ export async function handleAvailabilityRequestSlash(interaction) {
     createdAt: new Date(),
     responses: {},
     status: 'pending',
-  });
-  const requestId = requestRef.id;
-
-  const embed = new EmbedBuilder()
-    .setTitle('📅 Availability Request')
-    .setDescription('Please respond with your availability for the upcoming scrim.')
-    .setColor(0x00ff00)
-    .addFields(
-      { name: 'Team', value: team.name, inline: true },
-      { name: 'Requested by', value: interaction.user.username, inline: true }
-    );
-  if (timePeriod) {
-    embed.addFields({ name: 'Time Period', value: timePeriod, inline: true });
-  }
-  embed.addFields({
-    name: 'Instructions',
-    value:
-      'Click the buttons below to respond:\n✅ Available\n❌ Unavailable\n⏰ Maybe (with time constraints)',
+    pollActive: true,
+    pollMode: 'channel_reactions',
+    channelId,
+    guildId: interaction.guild.id,
+    messageId: message.id,
+    pollParticipantIds: [],
+    pollExpiresAt,
   });
 
-  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`avail_yes_${requestId}`).setLabel('✅ Available').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`avail_no_${requestId}`).setLabel('❌ Unavailable').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`avail_maybe_${requestId}`).setLabel('⏰ Maybe').setStyle(ButtonStyle.Secondary)
-  );
-  const components = discordApi.componentsToApi([row]);
-
-  let sent = 0;
-  let failCount = 0;
-  for (const p of targetPlayers) {
+  for (const { emoji } of AVAILABILITY_POLL_REACTION_DAYS) {
     try {
-      await discordApi.sendDM(p.discordId, { embeds: [discordApi.embedToApi(embed)], components });
-      sent++;
+      await discordApi.addReaction(channelId, message.id, emoji);
+      await new Promise(r => setTimeout(r, 200));
     } catch (e) {
-      console.error('Failed to DM player:', e);
-      failCount++;
+      console.error('addReaction:', emoji, e.message);
     }
   }
 
-  const scope = sendToAll ? `all ${sent} linked player(s)` : `${sent} selected player(s)`;
-  await interaction.followUp({
-    content: `✅ Sent availability request to ${scope}.${failCount > 0 ? ` ${failCount} failed (DM closed?).` : ''}${warnNote}`,
-    ephemeral: true,
+  await interaction.editReply({
+    content:
+      `✅ Posted an availability poll in <#${channelId}>.\n` +
+      `Players/coaches on your roster should react with **1️⃣–7️⃣** for Mon–Sun. ` +
+      `Availability updates on the site after a short sync.${warnNote}`,
   });
+
+  try {
+    await syncAvailabilityReactionPolls(db);
+  } catch (e) {
+    console.warn('request-availability initial sync:', e.message);
+  }
 }

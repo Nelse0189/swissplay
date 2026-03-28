@@ -29,7 +29,6 @@ import Ringers from './pages/Ringers';
 import ScrimLogGuide from './pages/ScrimLogGuide';
 import NotFound from './pages/NotFound';
 import { colorPalettes } from './styles/palettes';
-import './styles/theme.css';
 import './App.css';
 
 function App() {

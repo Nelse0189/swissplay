@@ -7,7 +7,7 @@
  */
 
 import { onRequest } from 'firebase-functions/v2/https';
-import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { config } from 'firebase-functions';
 import admin from 'firebase-admin';
@@ -16,7 +16,12 @@ import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder,
 
 import { createInteractionAdapter } from './interactionAdapter.js';
 import * as discordApi from './discordApi.js';
-import { getManagerTeams, getPlayerByDiscordId, ensureTeamLinkedToGuild } from './lib/firebase-helpers.js';
+import {
+  getManagerTeams,
+  getPlayerByDiscordId,
+  ensureTeamLinkedToGuild,
+  syncMemberDiscordIdsFromMembers,
+} from './lib/firebase-helpers.js';
 
 admin.initializeApp();
 
@@ -363,6 +368,8 @@ async function handleHelpSlash(interaction) {
       { name: '`/my-availability`', value: 'Set your availability via dropdown (or custom text).' },
       { name: '`/my-team`', value: 'View your team roster and schedule.' },
       { name: '`/upcoming-scrims`', value: 'See all scheduled scrims.' },
+      { name: '`/find-scrims`', value: 'Opponents whose schedule overlaps yours (filters + smart sort, like the website).' },
+      { name: '`/list-available-scrims`', value: 'Find teams with an open slot (day & time dropdowns).' },
       { name: '`/help`', value: 'Show this help message' }
     )
     .setFooter({ text: 'All availability and team info is sent privately via DM.' });
@@ -379,7 +386,9 @@ async function handleHelpSlash(interaction) {
         { name: '`/find-time`', value: 'Analyze team availability.' },
         { name: '`/team-stats`', value: 'View team analytics.' },
         { name: '`/list-players`', value: 'List all players with Discord status.' },
-        { name: '`/find-free-agents`', value: 'Browse free agents.' }
+        { name: '`/find-free-agents`', value: 'Browse free agents.' },
+        { name: '`/set-summary-channel`', value: 'Auto-post daily or weekly event summaries to a channel.' },
+        { name: '`/set-reminder-channel`', value: 'Post event reminders to a channel (in addition to DMs).' }
       )
       .setFooter({ text: 'Manager verification required - verify on website first!' });
     embeds.push(managerEmbed);
@@ -395,6 +404,18 @@ async function handleHelpSlash(interaction) {
 // --- Router ---
 async function routeInteraction(interaction) {
   const { type, data } = interaction;
+
+  // Slash command autocomplete (type 4)
+  if (type === 4) {
+    const commandName = data?.name || interaction.commandName;
+    if (commandName === 'find-scrims') {
+      const { handleFindScrimsAutocomplete } = await import('./handlers/findScrims.js');
+      await handleFindScrimsAutocomplete(interaction);
+      return;
+    }
+    interaction.respondAutocomplete([]);
+    return;
+  }
 
   // Modal submit (type 5) - e.g. availability form
   if (type === 5) {
@@ -590,6 +611,14 @@ async function routeInteraction(interaction) {
         const { handleCreateTeamSlash } = await import('./handlers/createTeam.js');
         await handleCreateTeamSlash(interaction);
         break;
+      case 'list-available-scrims':
+        const { handleListAvailableScrimsSlash } = await import('./handlers/listAvailableScrims.js');
+        await handleListAvailableScrimsSlash(interaction);
+        break;
+      case 'find-scrims':
+        const { handleFindScrimsSlash } = await import('./handlers/findScrims.js');
+        await handleFindScrimsSlash(interaction);
+        break;
       case 'send-scrim-request':
         const { handleSendScrimRequestSlash } = await import('./handlers/sendScrimRequest.js');
         await handleSendScrimRequestSlash(interaction);
@@ -625,6 +654,14 @@ async function routeInteraction(interaction) {
       case 'submit-review':
         const { handleSubmitReviewSlash } = await import('./handlers/submitReview.js');
         await handleSubmitReviewSlash(interaction);
+        break;
+      case 'set-summary-channel':
+        const { handleSetSummaryChannelSlash } = await import('./handlers/calendarSettings.js');
+        await handleSetSummaryChannelSlash(interaction);
+        break;
+      case 'set-reminder-channel':
+        const { handleSetReminderChannelSlash } = await import('./handlers/calendarSettings.js');
+        await handleSetReminderChannelSlash(interaction);
         break;
       default: {
         const receivedCommand = commandName || data?.name || '(none)';
@@ -804,7 +841,7 @@ export const onScrimRequestUpdated = onDocumentUpdated(
       endTime: admin.firestore.Timestamp.fromDate(endDate),
       recurrenceRule: null,
       eventType: 'scrim',
-      reminders: [60, 1440],
+      reminders: [60],
       colorEmoji: '⚔️',
       scrimRequestId: event.params.requestId,
       remindersSent: {}
@@ -831,6 +868,40 @@ export const onScrimRequestUpdated = onDocumentUpdated(
 
     await createForTeam(data.fromTeamId, fromTeam, data.toTeamName);
     await createForTeam(data.toTeamId, toTeam, data.fromTeamName);
+  }
+);
+
+// --- Firestore: sync website calendar → Discord Scheduled Events (replaces former discord-bot listener) ---
+export const onCalendarEventWritten = onDocumentWritten(
+  { document: 'calendarEvents/{eventId}', region: 'us-central1' },
+  async (event) => {
+    ensureDiscordConfig();
+    const change = event.data;
+    if (!change) return;
+    const db = admin.firestore();
+    const { handleCalendarEventWrite } = await import('./lib/syncCalendarEventToDiscord.js');
+    await handleCalendarEventWrite(change.before, change.after, db);
+  }
+);
+
+/** Denormalize roster Discord IDs for indexed lookups (avoids full `teams` scans in Discord handlers). */
+function memberDiscordIdSetsEqual(a, b) {
+  const sa = new Set((a || []).map(String));
+  const sb = new Set((b || []).map(String));
+  if (sa.size !== sb.size) return false;
+  for (const x of sa) if (!sb.has(x)) return false;
+  return true;
+}
+
+export const onTeamMemberDiscordIdsSync = onDocumentWritten(
+  { document: 'teams/{teamId}', region: 'us-central1' },
+  async (event) => {
+    const after = event.data?.after;
+    if (!after?.exists) return;
+    const data = after.data();
+    const next = syncMemberDiscordIdsFromMembers(data.members);
+    if (memberDiscordIdSetsEqual(data.memberDiscordIds, next)) return;
+    await after.ref.update({ memberDiscordIds: next });
   }
 );
 
@@ -942,6 +1013,490 @@ export const scheduleCarryOverReminders = onSchedule(
   }
 );
 
+// --- Scheduled: daily event summaries (every day at 14:00 UTC / 9 AM ET) ---
+export const dailyEventSummary = onSchedule(
+  { schedule: '0 14 * * *', region: 'us-central1' },
+  async () => {
+    ensureDiscordConfig();
+    const db = admin.firestore();
+    const teamsSnapshot = await db.collection('teams')
+      .where('summaryFrequency', '==', 'daily')
+      .get();
+
+    if (teamsSnapshot.empty) return;
+
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const { rrulestr } = require('rrule');
+
+    const now = new Date();
+    const endDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    for (const teamDoc of teamsSnapshot.docs) {
+      const team = { id: teamDoc.id, ...teamDoc.data() };
+      if (!team.summaryChannelId) continue;
+
+      try {
+        const events = await getUpcomingEventsForTeam(db, team.id, now, endDate, rrulestr);
+        if (events.length === 0) continue;
+
+        const { EmbedBuilder } = await import('discord.js');
+        const embed = await buildSummaryEmbed(events, team.name, 'today', EmbedBuilder);
+        await discordApi.sendMessage(team.summaryChannelId, {
+          embeds: [discordApi.embedToApi(embed)],
+        });
+      } catch (err) {
+        console.error(`Daily summary failed for team ${team.id}:`, err.message);
+      }
+    }
+  }
+);
+
+// --- Scheduled: weekly event summaries (every Monday at 14:00 UTC / 9 AM ET) ---
+export const weeklyEventSummary = onSchedule(
+  { schedule: '0 14 * * 1', region: 'us-central1' },
+  async () => {
+    ensureDiscordConfig();
+    const db = admin.firestore();
+    const teamsSnapshot = await db.collection('teams')
+      .where('summaryFrequency', '==', 'weekly')
+      .get();
+
+    if (teamsSnapshot.empty) return;
+
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const { rrulestr } = require('rrule');
+
+    const now = new Date();
+    const endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    for (const teamDoc of teamsSnapshot.docs) {
+      const team = { id: teamDoc.id, ...teamDoc.data() };
+      if (!team.summaryChannelId) continue;
+
+      try {
+        const events = await getUpcomingEventsForTeam(db, team.id, now, endDate, rrulestr);
+        if (events.length === 0) continue;
+
+        const { EmbedBuilder } = await import('discord.js');
+        const embed = await buildSummaryEmbed(events, team.name, 'this week', EmbedBuilder);
+        await discordApi.sendMessage(team.summaryChannelId, {
+          embeds: [discordApi.embedToApi(embed)],
+        });
+      } catch (err) {
+        console.error(`Weekly summary failed for team ${team.id}:`, err.message);
+      }
+    }
+  }
+);
+
+// --- Scheduled: channel-based calendar reminders (every 5 min) ---
+export const calendarChannelReminders = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-central1' },
+  async () => {
+    ensureDiscordConfig();
+    const db = admin.firestore();
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const { rrulestr } = require('rrule');
+    const { extractConferenceLinks, formatConferenceLinks } = await import('./lib/conference-links.js');
+
+    const now = new Date();
+    const REMINDER_WINDOW_MS = 6 * 60 * 1000;
+
+    const eventsSnapshot = await db.collection('calendarEvents').get();
+
+    for (const doc of eventsSnapshot.docs) {
+      const event = { id: doc.id, ...doc.data() };
+      const reminders = event.reminders || [];
+      if (reminders.length === 0) continue;
+
+      const startTime = event.startTime?.toDate
+        ? event.startTime.toDate()
+        : new Date(event.startTime);
+      let occurrenceStart = startTime;
+
+      if (event.recurrenceRule) {
+        try {
+          const rule = rrulestr(
+            event.recurrenceRule.startsWith('RRULE:')
+              ? event.recurrenceRule
+              : `RRULE:${event.recurrenceRule}`
+          );
+          const futureCutoff = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+          const occurrences = rule.between(now, futureCutoff, true);
+          if (occurrences.length === 0) continue;
+          occurrenceStart = occurrences[0];
+        } catch (_) {
+          if (occurrenceStart < now) continue;
+        }
+      } else if (occurrenceStart < now) {
+        continue;
+      }
+
+      // Get team to check for reminderChannelId
+      let team = null;
+      if (event.teamId) {
+        try {
+          const teamDoc = await db.collection('teams').doc(event.teamId).get();
+          if (teamDoc.exists) team = { id: teamDoc.id, ...teamDoc.data() };
+        } catch (_) {}
+      }
+      if (!team?.reminderChannelId) continue;
+
+      const occurrenceKey = occurrenceStart.toISOString();
+      const channelRemindersSent = event.channelRemindersSent || {};
+      const sentForOccurrence = channelRemindersSent[occurrenceKey] || {};
+
+      for (const mins of reminders) {
+        const minsMs = mins * 60 * 1000;
+        const windowStart = new Date(occurrenceStart.getTime() - minsMs - REMINDER_WINDOW_MS);
+        const windowEnd = new Date(occurrenceStart.getTime() - minsMs + REMINDER_WINDOW_MS);
+
+        if (now >= windowStart && now <= windowEnd && !sentForOccurrence[mins]) {
+          const timeframe =
+            mins < 60 ? `${mins} minutes`
+              : mins < 1440 ? `${mins / 60} hour${mins === 60 ? '' : 's'}`
+                : `${mins / 1440} day${mins === 1440 ? '' : 's'}`;
+
+          const emoji = event.colorEmoji || '📅';
+          const timeStr = occurrenceStart.toLocaleString('en-US', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          });
+
+          const { EmbedBuilder } = await import('discord.js');
+          const embed = new EmbedBuilder()
+            .setTitle(`${emoji} ${event.title || 'Event'} — in ${timeframe}!`)
+            .addFields(
+              { name: 'When', value: timeStr, inline: true },
+              { name: 'Type', value: event.eventType || 'Event', inline: true }
+            )
+            .setColor(0xffaa00);
+
+          if (event.description) {
+            embed.addFields({
+              name: 'Details',
+              value: event.description.substring(0, 300),
+              inline: false,
+            });
+            const links = extractConferenceLinks(event.description);
+            const linkStr = formatConferenceLinks(links);
+            if (linkStr) {
+              embed.addFields({ name: 'Links', value: linkStr, inline: false });
+            }
+          }
+
+          if (event.discordEventId && team.discordGuildId) {
+            embed.setURL(`https://discord.com/events/${team.discordGuildId}/${event.discordEventId}`);
+          }
+
+          try {
+            await discordApi.sendMessage(team.reminderChannelId, {
+              embeds: [discordApi.embedToApi(embed)],
+            });
+
+            sentForOccurrence[mins] = true;
+            channelRemindersSent[occurrenceKey] = sentForOccurrence;
+            await doc.ref.update({ channelRemindersSent, updatedAt: new Date() });
+          } catch (sendErr) {
+            console.error(`Channel reminder failed for event ${doc.id}:`, sendErr.message);
+          }
+        }
+      }
+    }
+  }
+);
+
+// --- Scheduled: DM calendar event reminders to linked team members (every 5 min) ---
+export const calendarDmReminders = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-central1' },
+  async () => {
+    ensureDiscordConfig();
+    const db = admin.firestore();
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const { rrulestr } = require('rrule');
+    const { extractConferenceLinks, formatConferenceLinks } = await import('./lib/conference-links.js');
+
+    const now = new Date();
+    const REMINDER_WINDOW_MS = 6 * 60 * 1000;
+
+    const eventsSnapshot = await db.collection('calendarEvents').get();
+
+    for (const doc of eventsSnapshot.docs) {
+      const event = { id: doc.id, ...doc.data() };
+      const reminders = event.reminders || [];
+      if (reminders.length === 0) continue;
+
+      const startTime = event.startTime?.toDate
+        ? event.startTime.toDate()
+        : new Date(event.startTime);
+      let occurrenceStart = startTime;
+
+      if (event.recurrenceRule) {
+        try {
+          const rule = rrulestr(
+            event.recurrenceRule.startsWith('RRULE:')
+              ? event.recurrenceRule
+              : `RRULE:${event.recurrenceRule}`
+          );
+          const futureCutoff = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+          const occurrences = rule.between(now, futureCutoff, true);
+          if (occurrences.length === 0) continue;
+          occurrenceStart = occurrences[0];
+        } catch (_) {
+          if (occurrenceStart < now) continue;
+        }
+      } else if (occurrenceStart < now) {
+        continue;
+      }
+
+      let team = null;
+      if (event.teamId) {
+        try {
+          const teamDoc = await db.collection('teams').doc(event.teamId).get();
+          if (teamDoc.exists) team = { id: teamDoc.id, ...teamDoc.data() };
+        } catch (_) {}
+      }
+      const members = team?.members || [];
+      const discordIds = members.map((m) => m.discordId).filter(Boolean);
+      if (discordIds.length === 0) continue;
+
+      const occurrenceKey = occurrenceStart.toISOString();
+      const remindersSent = event.remindersSent || {};
+      const sentForOccurrence = remindersSent[occurrenceKey] || {};
+
+      for (const mins of reminders) {
+        const minsMs = mins * 60 * 1000;
+        const windowStart = new Date(occurrenceStart.getTime() - minsMs - REMINDER_WINDOW_MS);
+        const windowEnd = new Date(occurrenceStart.getTime() - minsMs + REMINDER_WINDOW_MS);
+
+        if (now >= windowStart && now <= windowEnd && !sentForOccurrence[mins]) {
+          const timeframe =
+            mins < 60 ? `${mins} minutes`
+              : mins < 1440 ? `${mins / 60} hour${mins === 60 ? '' : 's'}`
+                : mins < 10080 ? `${mins / 1440} day${mins === 1440 ? '' : 's'}`
+                  : `${mins / 10080} week`;
+
+          const emoji = event.colorEmoji || '📅';
+          const { EmbedBuilder } = await import('discord.js');
+
+          for (const discordId of discordIds) {
+            let timeDisplay = occurrenceStart.toLocaleString('en-US', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            });
+            try {
+              const settingsDoc = await db.collection('discordUserSettings').doc(discordId).get();
+              let tz = settingsDoc.exists ? settingsDoc.data().timezone : null;
+              if (!tz) {
+                const member = members.find((m) => m.discordId === discordId);
+                if (member?.uid) {
+                  const userDoc = await db.collection('users').doc(member.uid).get();
+                  if (userDoc.exists) tz = userDoc.data().timezone;
+                }
+              }
+              if (tz) {
+                timeDisplay = occurrenceStart.toLocaleString('en-US', {
+                  timeZone: tz,
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                });
+                timeDisplay += ' (your time)';
+              }
+            } catch (_) {}
+
+            const embed = new EmbedBuilder()
+              .setTitle(`${emoji} Event Reminder – ${timeframe}!`)
+              .setDescription(`**${event.title || 'Event'}** is coming up.`)
+              .addFields(
+                { name: 'When', value: timeDisplay, inline: true },
+                { name: 'Type', value: event.eventType || 'Event', inline: true }
+              )
+              .setColor(0xffaa00);
+
+            if (event.description) {
+              embed.addFields({
+                name: 'Details',
+                value: event.description.substring(0, 500) + (event.description.length > 500 ? '...' : ''),
+                inline: false,
+              });
+              const links = extractConferenceLinks(event.description);
+              const linkStr = formatConferenceLinks(links);
+              if (linkStr) embed.addFields({ name: 'Links', value: linkStr, inline: false });
+            }
+
+            try {
+              await discordApi.sendDM(discordId, { embeds: [discordApi.embedToApi(embed)] });
+            } catch (e) {
+              console.log(`calendar DM reminder skip ${discordId}:`, e.message);
+            }
+          }
+
+          sentForOccurrence[mins] = true;
+          remindersSent[occurrenceKey] = sentForOccurrence;
+          await doc.ref.update({ remindersSent, updatedAt: new Date() });
+        }
+      }
+    }
+  }
+);
+
+// --- Scheduled: auto-start Discord Scheduled Events (every 2 min) ---
+export const autoStartDiscordEvents = onSchedule(
+  { schedule: 'every 2 minutes', region: 'us-central1' },
+  async () => {
+    ensureDiscordConfig();
+    const db = admin.firestore();
+    const now = new Date();
+    const windowMs = 3 * 60 * 1000; // 3 minute window
+
+    const eventsSnapshot = await db.collection('calendarEvents')
+      .where('discordEventId', '!=', null)
+      .get();
+
+    for (const doc of eventsSnapshot.docs) {
+      const event = doc.data();
+      if (!event.discordEventId || !event.discordGuildId) continue;
+      if (event.discordEventAutoStarted) continue;
+
+      const startTime = event.startTime?.toDate
+        ? event.startTime.toDate()
+        : new Date(event.startTime);
+
+      const diff = now.getTime() - startTime.getTime();
+
+      // Auto-start if within [-1min, +3min] of start time
+      if (diff >= -60000 && diff <= windowMs) {
+        try {
+          await discordApi.startScheduledEvent(event.discordGuildId, event.discordEventId);
+          await doc.ref.update({ discordEventAutoStarted: true, updatedAt: new Date() });
+          console.log(`▶️ Auto-started Discord event: ${event.title}`);
+        } catch (err) {
+          // Event might already be started/completed/cancelled
+          if (err.message?.includes('400') || err.message?.includes('404')) {
+            await doc.ref.update({ discordEventAutoStarted: true });
+          } else {
+            console.error(`Auto-start failed for ${event.title}:`, err.message);
+          }
+        }
+      }
+
+      // Auto-end if past end time
+      const endTime = event.endTime?.toDate
+        ? event.endTime.toDate()
+        : new Date(event.endTime);
+
+      if (endTime && now > endTime && !event.discordEventAutoEnded) {
+        try {
+          await discordApi.endScheduledEvent(event.discordGuildId, event.discordEventId);
+          await doc.ref.update({ discordEventAutoEnded: true, updatedAt: new Date() });
+          console.log(`⏹️ Auto-ended Discord event: ${event.title}`);
+        } catch (err) {
+          if (err.message?.includes('400') || err.message?.includes('404')) {
+            await doc.ref.update({ discordEventAutoEnded: true });
+          }
+        }
+      }
+    }
+  }
+);
+
+// --- Scheduled: sync Discord reaction polls → Firestore (HTTP bot has no Gateway for reaction events) ---
+export const availabilityReactionPollSync = onSchedule(
+  { schedule: 'every 2 minutes', region: 'us-central1' },
+  async () => {
+    ensureDiscordConfig();
+    const db = admin.firestore();
+    const { syncAvailabilityReactionPolls } = await import('./handlers/availability.js');
+    try {
+      await syncAvailabilityReactionPolls(db);
+    } catch (e) {
+      console.error('availabilityReactionPollSync:', e);
+    }
+  }
+);
+
+// --- Helper: fetch upcoming events for a team ---
+async function getUpcomingEventsForTeam(db, teamId, now, endDate, rrulestr) {
+  const eventsSnapshot = await db.collection('calendarEvents')
+    .where('teamId', '==', teamId)
+    .get();
+
+  const allEvents = [];
+  const EVENT_TYPE_EMOJI = { scrim: '⚔️', practice: '🎯', tournament: '🏆', meetup: '👋', custom: '📌' };
+
+  for (const evDoc of eventsSnapshot.docs) {
+    const ev = { id: evDoc.id, ...evDoc.data() };
+    const startTime = ev.startTime?.toDate ? ev.startTime.toDate() : new Date(ev.startTime);
+
+    if (ev.recurrenceRule && rrulestr) {
+      try {
+        const rule = rrulestr(
+          ev.recurrenceRule.startsWith('RRULE:') ? ev.recurrenceRule : `RRULE:${ev.recurrenceRule}`
+        );
+        const occurrences = rule.between(now, endDate, true);
+        for (const occ of occurrences) {
+          allEvents.push({ ...ev, occurrenceStart: occ, emoji: ev.colorEmoji || EVENT_TYPE_EMOJI[ev.eventType] || '📌' });
+        }
+      } catch (_) {
+        if (startTime >= now && startTime <= endDate) {
+          allEvents.push({ ...ev, occurrenceStart: startTime, emoji: ev.colorEmoji || EVENT_TYPE_EMOJI[ev.eventType] || '📌' });
+        }
+      }
+    } else if (startTime >= now && startTime <= endDate) {
+      allEvents.push({ ...ev, occurrenceStart: startTime, emoji: ev.colorEmoji || EVENT_TYPE_EMOJI[ev.eventType] || '📌' });
+    }
+  }
+
+  allEvents.sort((a, b) => a.occurrenceStart - b.occurrenceStart);
+  return allEvents;
+}
+
+// --- Helper: build summary embed ---
+async function buildSummaryEmbed(events, teamName, periodLabel, EmbedBuilder) {
+  const { extractConferenceLinks, formatConferenceLinks } = await import('./lib/conference-links.js');
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📅 ${teamName || 'Team'} — Events ${periodLabel}`)
+    .setColor(0x7289da)
+    .setTimestamp();
+
+  if (events.length === 0) {
+    embed.setDescription('No events scheduled.');
+    return embed;
+  }
+
+  const fields = [];
+  for (const ev of events.slice(0, 15)) {
+    const timeStr = ev.occurrenceStart.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+
+    let value = `${ev.emoji} **${ev.title || 'Event'}** — ${timeStr}`;
+
+    if (ev.description) {
+      const links = extractConferenceLinks(ev.description);
+      const linkStr = formatConferenceLinks(links);
+      if (linkStr) value += `\n${linkStr}`;
+    }
+
+    fields.push({ name: '\u200b', value, inline: false });
+  }
+
+  embed.addFields(fields);
+  if (events.length > 15) {
+    embed.setFooter({ text: `Showing 15 of ${events.length} events` });
+  }
+  return embed;
+}
+
 // --- HTTP Handler ---
 export const discordInteractions = onRequest(
   { region: 'us-central1', minInstances: 1 },
@@ -1019,9 +1574,9 @@ export const discordInteractions = onRequest(
     
     const interaction = createInteractionAdapter(body, sendResponse);
 
-    // Defer immediately for slash commands and buttons - Discord requires response within 3 seconds.
-    // Cold starts and dynamic imports can exceed that; deferring first prevents "stuck on thinking".
-    if (body.type === 2 || body.type === 3) {
+    // Defer only slash commands (type 2). Message components (type 3) must be able to use
+    // type 7 update, type 6 deferUpdate, type 9 modal — a blanket defer breaks those flows.
+    if (body.type === 2) {
       await interaction.deferReply({ ephemeral: true });
     }
     
@@ -1053,7 +1608,11 @@ export const discordInteractions = onRequest(
       });
       const userMsg = `❌ Error: ${errMsg.substring(0, 1800)}`; // Discord 2000 char limit
       if (!responseSent) {
-        sendResponse({ type: 4, data: { content: userMsg, flags: 64 } });
+        if (body.type === 4) {
+          sendResponse({ type: 8, data: { choices: [] } });
+        } else {
+          sendResponse({ type: 4, data: { content: userMsg, flags: 64 } });
+        }
       } else {
         // Response already sent (deferred) - edit the reply so user sees the actual error
         const { interactionEditReply } = await import('./discordApi.js');

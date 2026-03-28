@@ -108,7 +108,7 @@
 
 .form-group textarea {
   resize: vertical;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .form-hint {

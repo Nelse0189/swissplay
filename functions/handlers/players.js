@@ -1,7 +1,6 @@
 import admin from 'firebase-admin';
 import { EmbedBuilder } from 'discord.js';
-import { getManagerTeams, getPlayerByDiscordId, ensureTeamLinkedToGuild } from '../lib/firebase-helpers.js';
-import * as discordApi from '../discordApi.js';
+import { getManagerTeams, ensureTeamLinkedToGuild } from '../lib/firebase-helpers.js';
 
 function getFirestore() {
   return admin.firestore();
@@ -72,34 +71,45 @@ export async function handleListPlayersSlash(interaction) {
 }
 
 export async function handleMyTeamSlash(interaction) {
-  await interaction.reply({ content: '👥 Check your DMs! I sent you your team info.', ephemeral: true });
   const user = interaction.user;
   const db = getFirestore();
   const teamsSnapshot = await db.collection('teams').get();
   const userTeams = teamsSnapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(t => t.members?.some(m => m.discordId === user.id));
+
   if (userTeams.length === 0) {
-    await discordApi.sendDM(user.id, {
-      embeds: [discordApi.embedToApi(new EmbedBuilder()
-        .setTitle('❌ Not on a Team')
-        .setDescription('You\'re not on any team. Ask a manager to add you with `/add-player`.')
-        .setColor(0xff0000))]
-    });
+    const embed = new EmbedBuilder()
+      .setTitle('❌ Not on a Team')
+      .setDescription('You\'re not on any team. Ask a manager to add you with `/add-player`.')
+      .setColor(0xff0000);
+    await interaction.editReply({ embeds: [embed] });
     return;
   }
-  for (const team of userTeams) {
+
+  const embeds = userTeams.map((team) => {
     const myMember = team.members.find(m => m.discordId === user.id);
-    const rosterText = team.members.map(m => `• ${m.discordUsername || m.name || 'Unknown'} ${m.discordId === user.id ? '(You)' : ''}`).join('\n').slice(0, 1000);
-    const embed = new EmbedBuilder()
+    const rosterText = team.members
+      .map(m => `• ${m.discordUsername || m.name || 'Unknown'} ${m.discordId === user.id ? '(You)' : ''}`)
+      .join('\n')
+      .slice(0, 1000);
+    return new EmbedBuilder()
       .setTitle(`👥 ${team.name || 'Your Team'}`)
       .addFields(
         { name: 'Your Availability', value: myMember?.availabilityText || 'Not set', inline: false },
         { name: 'Team Roster', value: rosterText || 'No members', inline: false }
       )
       .setColor(0x00ff00);
-    await discordApi.sendDM(user.id, { embeds: [discordApi.embedToApi(embed)] });
-  }
+  });
+
+  const MAX_EMBEDS = 10;
+  const shown = embeds.slice(0, MAX_EMBEDS);
+  await interaction.editReply({
+    embeds: shown,
+    ...(userTeams.length > MAX_EMBEDS && {
+      content: `Showing ${MAX_EMBEDS} of ${userTeams.length} teams.`,
+    }),
+  });
 }
 
 export async function handleTeamStatsSlash(interaction) {

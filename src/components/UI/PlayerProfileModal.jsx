@@ -82,14 +82,14 @@ const PlayerProfileModal = ({ isOpen, onClose, player, team }) => {
         setPlayerData({
           displayName: data.displayName || player.name,
           bio: data.bio || 'No bio available.',
-          photoURL: data.photoURL || player.photoURL || '/default-avatar.png'
+          photoURL: data.photoURL || player.photoURL || '/default-avatar.svg'
         });
       } else {
         // Fallback to player data from team
         setPlayerData({
           displayName: player.name,
           bio: 'No bio available.',
-          photoURL: player.photoURL || '/default-avatar.png'
+          photoURL: player.photoURL || '/default-avatar.svg'
         });
       }
 
@@ -221,7 +221,7 @@ const PlayerProfileModal = ({ isOpen, onClose, player, team }) => {
             <div className="player-profile-header">
               <div>
                 <img 
-                  src={playerData.photoURL || '/default-avatar.png'} 
+                  src={playerData.photoURL || '/default-avatar.svg'} 
                   alt={playerData.displayName}
                   className="player-profile-avatar"
                   onError={(e) => {

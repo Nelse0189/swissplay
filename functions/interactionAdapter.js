@@ -5,6 +5,38 @@
 
 import * as discordApi from './discordApi.js';
 
+/** SUB_COMMAND / SUB_COMMAND_GROUP wrap leaf options; Discord.js resolves them flat. */
+function flattenSlashOptions(options) {
+  if (!options?.length) return [];
+  const out = [];
+  for (const opt of options) {
+    if (opt.type === 1 || opt.type === 2) {
+      out.push(...flattenSlashOptions(opt.options));
+    } else {
+      out.push(opt);
+    }
+  }
+  return out;
+}
+
+function findFocusedOption(options) {
+  if (!options || !Array.isArray(options)) return null;
+  for (const opt of options) {
+    if (opt.focused) {
+      return {
+        name: opt.name,
+        value: opt.value != null ? String(opt.value) : '',
+        type: opt.type,
+      };
+    }
+    if (opt.options?.length) {
+      const inner = findFocusedOption(opt.options);
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
+
 export function createInteractionAdapter(body, sendResponse) {
   const { id, application_id, token, type, data, guild_id, channel_id, member } = body;
   const user = member?.user || body.user;
@@ -42,7 +74,7 @@ export function createInteractionAdapter(body, sendResponse) {
     },
     
     get options() {
-      const opts = data?.options || [];
+      const opts = flattenSlashOptions(data?.options || []);
       return {
         getUser: (name) => {
           const opt = opts.find(o => o.name === name);
@@ -50,7 +82,11 @@ export function createInteractionAdapter(body, sendResponse) {
           const resolved = data?.resolved?.users?.[opt.value];
           return resolved ? { id: opt.value, username: resolved.username, globalName: resolved.global_name || resolved.username, ...resolved } : { id: opt.value, username: 'Unknown' };
         },
-        getString: (name) => opts.find(o => o.name === name)?.value ?? null,
+        getString: (name) => {
+          const v = opts.find(o => o.name === name)?.value;
+          if (v == null) return null;
+          return typeof v === 'string' ? v : String(v);
+        },
         getInteger: (name) => {
           const opt = opts.find(o => o.name === name);
           if (!opt || opt.type !== 4) return null;
@@ -67,6 +103,12 @@ export function createInteractionAdapter(body, sendResponse) {
           const resolved = data?.resolved?.attachments?.[opt.value];
           return resolved ? { id: opt.value, url: resolved.url, filename: resolved.filename } : null;
         },
+        getChannel: (name) => {
+          const opt = opts.find(o => o.name === name);
+          if (!opt || opt.type !== 7) return null;
+          const resolved = data?.resolved?.channels?.[opt.value];
+          return resolved ? { id: opt.value, name: resolved.name, type: resolved.type, ...resolved } : { id: opt.value };
+        },
       };
     },
     
@@ -75,8 +117,13 @@ export function createInteractionAdapter(body, sendResponse) {
     },
     
     isChatInputCommand: () => type === 2,
+    isAutocomplete: () => type === 4,
     isStringSelectMenu: () => type === 3 && data?.component_type === 3,
     isButton: () => type === 3 && data?.component_type === 2,
+
+    getFocusedOption() {
+      return findFocusedOption(data?.options);
+    },
     
     get customId() {
       return data?.custom_id;
@@ -108,6 +155,28 @@ export function createInteractionAdapter(body, sendResponse) {
       const deferredPayload = { type: 5, data: ephemeral ? { flags: 64 } : {} };
       adapter._response = deferredPayload;
       if (sendResponse) sendResponse(deferredPayload);
+    },
+
+    /** Slash command autocomplete (interaction type 4). Max 25 choices; name/value max 100 chars each. */
+    respondAutocomplete(choices) {
+      if (adapter.replied) return;
+      adapter.replied = true;
+      const safe = (choices || []).slice(0, 25).map((c) => ({
+        name: String(c.name != null ? c.name : 'Choice').slice(0, 100),
+        value: String(c.value != null ? c.value : '').slice(0, 100),
+      }));
+      adapter._response = { type: 8, data: { choices: safe } };
+      if (sendResponse) sendResponse(adapter._response);
+    },
+
+    /** Acknowledge component interaction without changing the message (type 6). */
+    async deferUpdate() {
+      if (adapter.replied || adapter.deferred) return;
+      adapter.deferred = true;
+      adapter.deferredUpdate = true;
+      adapter.replied = true;
+      adapter._response = { type: 6 };
+      if (sendResponse) sendResponse(adapter._response);
     },
 
     /** Show a modal (type 9). Must be the first response to the interaction. */
@@ -149,20 +218,18 @@ export function createInteractionAdapter(body, sendResponse) {
     },
     
     async followUp({ content, embeds, components, ephemeral = false }) {
-      console.log('followUp called, deferred=', adapter.deferred, 'hasSendResponse=', !!sendResponse);
       const payload = { content: content || undefined };
       if (embeds?.length) payload.embeds = embeds.map(e => discordApi.embedToApi(e));
       if (components?.length) payload.components = components;
       if (ephemeral && !adapter.deferred) payload.flags = 64;
-      // After deferReply, HTTP response was already sent - MUST use webhook to edit, not sendResponse
-      if (adapter.deferred) {
-        try {
-          console.log('followUp: using webhook to edit deferred reply');
-          await discordApi.interactionEditReply(application_id, token, payload);
-        } catch (err) {
-          console.error('followUp: webhook edit failed:', err.message);
-          throw err;
-        }
+      // Deferred slash reply: edit the "thinking" / deferred message
+      if (adapter.deferred && !adapter.deferredUpdate) {
+        await discordApi.interactionEditReply(application_id, token, payload);
+        return;
+      }
+      // deferUpdate, reply(), or update() already consumed the single HTTP response — use webhook
+      if (adapter.replied) {
+        await discordApi.interactionFollowUp(application_id, token, payload);
         return;
       }
       if (sendResponse) {
@@ -177,7 +244,7 @@ export function createInteractionAdapter(body, sendResponse) {
       if (content !== undefined) payload.content = content;
       if (embeds?.length) payload.embeds = embeds.map(e => discordApi.embedToApi(e));
       if (components !== undefined) payload.components = components;
-      // After deferReply, we must use the webhook to edit (can't send HTTP again)
+      // After deferReply or deferUpdate, we must use the webhook to edit
       if (adapter.deferred) {
         return discordApi.interactionEditReply(application_id, token, payload);
       }

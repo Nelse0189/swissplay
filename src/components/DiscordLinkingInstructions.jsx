@@ -1,13 +1,21 @@
 import React from 'react';
+import { useToast } from '../context/ToastContext';
 
 /**
  * Reusable Discord linking instructions for help modals.
  * Used in EditProfile and SettingsTab.
  */
 export const DiscordLinkingInstructions = ({ verificationCode = null }) => {
-  const copyCode = () => {
-    if (verificationCode) {
-      navigator.clipboard?.writeText(`/verify-discord code:${verificationCode}`);
+  const toast = useToast();
+
+  const copyCode = async () => {
+    if (!verificationCode) return;
+    const text = `/verify-discord code:${verificationCode}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Command copied to clipboard');
+    } catch {
+      toast.error('Could not copy automatically — select the command text instead');
     }
   };
 

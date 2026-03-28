@@ -267,6 +267,7 @@ const FindScrims = () => {
       const uidStr = String(uid);
       const teamsData = teamsSnapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => !t.deprecated)
         .filter(t => {
           if (t.members?.some(m => m.uid == uid || String(m.uid) === uidStr)) return true;
           if (t.ownerId == uid || String(t.ownerId) === uidStr) return true;
@@ -902,7 +903,7 @@ const FindScrims = () => {
       <PageWrapper>
          <div className="auth-prompt-container">
           <h2>AUTHENTICATION REQUIRED</h2>
-          <p>PLEASE SIGN IN TO ACCESS SCRIM PROTOCOLS.</p>
+          <p>PLEASE SIGN IN TO FIND SCRIMS.</p>
           <button className="save-btn" onClick={() => navigate('/auth')}>
             SIGN IN
           </button>
@@ -1043,7 +1044,7 @@ const FindScrims = () => {
                                 style={{ cursor: 'pointer' }}
                               >
                                 <img 
-                                  src={member.photoURL || '/default-avatar.png'} 
+                                  src={member.photoURL || '/default-avatar.svg'} 
                                   alt={member.name}
                                   className="team-player-avatar"
                                   onError={(e) => {

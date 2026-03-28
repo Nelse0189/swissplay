@@ -7,7 +7,7 @@ import CustomDropdown from '../UI/CustomDropdown';
 import ImageCropper from '../UI/ImageCropper';
 import { createPortal } from 'react-dom';
 import { RRule } from 'rrule';
-import { format } from 'date-fns';
+import { format, addDays, parse } from 'date-fns';
 
 const EVENT_TYPES = [
   { value: 'scrim', label: 'Scrim' },
@@ -63,7 +63,15 @@ function getDefaultRecurrenceRule(recurrence, startDate) {
   }
 }
 
+function slotSpansSingleCalendarDay(slot) {
+  if (!slot?.start || !slot?.end) return false;
+  const st = slot.start instanceof Date ? slot.start : new Date(slot.start);
+  const et = slot.end instanceof Date ? slot.end : new Date(slot.end);
+  return format(st, 'yyyy-MM-dd') === format(et, 'yyyy-MM-dd');
+}
+
 const CalendarEventForm = ({ team, event, initialSlot, onSave, onDelete, onClose }) => {
+  const dateLocked = Boolean(!event && initialSlot && slotSpansSingleCalendarDay(initialSlot));
   const toast = useToast();
   const fileInputRef = useRef(null);
   const [showCropper, setShowCropper] = useState(false);
@@ -80,7 +88,7 @@ const CalendarEventForm = ({ team, event, initialSlot, onSave, onDelete, onClose
   const [customRrule, setCustomRrule] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState(null);
   const [discordVoiceChannelId, setDiscordVoiceChannelId] = useState('');
-  const [reminders, setReminders] = useState([60, 1440]);
+  const [reminders, setReminders] = useState([60]);
   const [colorEmoji, setColorEmoji] = useState('⚔️');
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -100,21 +108,21 @@ const CalendarEventForm = ({ team, event, initialSlot, onSave, onDelete, onClose
       setCustomRrule(event.recurrenceRule || '');
       setCoverImageUrl(event.coverImageUrl || null);
       setDiscordVoiceChannelId(event.discordVoiceChannelId || '');
-      setReminders(event.reminders || [60, 1440]);
+      setReminders(event.reminders?.length ? event.reminders : [60]);
       setColorEmoji(event.colorEmoji || EVENT_TYPE_DEFAULT_EMOJI[event.eventType] || '⚔️');
     } else if (initialSlot) {
       const st = initialSlot.start;
       const et = initialSlot.end;
-      setStartDate(format(st, 'yyyy-MM-dd'));
+      const day = format(st, 'yyyy-MM-dd');
+      setStartDate(day);
       setStartTime(format(st, 'HH:mm'));
-      setEndDate(format(et, 'yyyy-MM-dd'));
+      if (slotSpansSingleCalendarDay(initialSlot)) {
+        setEndDate(day);
+      } else {
+        setEndDate(format(et, 'yyyy-MM-dd'));
+      }
       setEndTime(format(et, 'HH:mm'));
       setColorEmoji(EVENT_TYPE_DEFAULT_EMOJI[eventType]);
-    } else {
-      const now = new Date();
-      const end = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-      setStartDate(format(now, 'yyyy-MM-dd'));
-      setEndDate(format(end, 'yyyy-MM-dd'));
     }
   }, [event, initialSlot]);
 
@@ -173,7 +181,13 @@ const CalendarEventForm = ({ team, event, initialSlot, onSave, onDelete, onClose
     setSaving(true);
     try {
       const start = new Date(`${startDate}T${startTime}`);
-      const end = new Date(`${endDate}T${endTime}`);
+      let end;
+      if (dateLocked) {
+        end = new Date(`${startDate}T${endTime}`);
+        if (end <= start) end = addDays(end, 1);
+      } else {
+        end = new Date(`${endDate}T${endTime}`);
+      }
       if (end <= start) {
         toast.error('End must be after start');
         setSaving(false);
@@ -241,44 +255,78 @@ const CalendarEventForm = ({ team, event, initialSlot, onSave, onDelete, onClose
               rows={3}
             />
           </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Start</label>
-              <div className="datetime-inputs">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="custom-input"
-                  required
-                />
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="custom-input"
-                />
+          {dateLocked ? (
+            <div className="form-group calendar-event-form-date-locked">
+              <label>Date</label>
+              <p className="calendar-event-form-readonly-date">
+                {startDate
+                  ? format(parse(startDate, 'yyyy-MM-dd', new Date()), 'EEEE, MMMM d, yyyy')
+                  : ''}
+              </p>
+              <div className="calendar-event-form-time-rows">
+                <div className="form-group calendar-event-form-time-row">
+                  <label>Start time</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="custom-input calendar-event-form-time-input"
+                  />
+                </div>
+                <div className="form-group calendar-event-form-time-row">
+                  <label>End time</label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="custom-input calendar-event-form-time-input"
+                  />
+                </div>
+              </div>
+              <p className="calendar-event-form-time-hint">
+                End time may be on the next day if it is earlier than start time (e.g. 11:00 PM–1:00 AM).
+              </p>
+            </div>
+          ) : (
+            <div className="calendar-event-form-datetime-section">
+              <div className="form-group calendar-event-form-datetime-block">
+                <label>Start</label>
+                <div className="datetime-inputs">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="custom-input"
+                    required
+                  />
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="custom-input"
+                  />
+                </div>
+              </div>
+              <div className="form-group calendar-event-form-datetime-block">
+                <label>End</label>
+                <div className="datetime-inputs">
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="custom-input"
+                    required
+                  />
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="custom-input"
+                  />
+                </div>
               </div>
             </div>
-            <div className="form-group">
-              <label>End</label>
-              <div className="datetime-inputs">
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="custom-input"
-                  required
-                />
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="custom-input"
-                />
-              </div>
-            </div>
-          </div>
+          )}
           <div className="form-row">
             <div className="form-group">
               <label>Recurrence</label>

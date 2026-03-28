@@ -28,10 +28,10 @@
 }
 
 .home-hero__title {
-  font-size: clamp(1.75rem, 4vw + 1rem, 4rem);
+  font-size: clamp(2rem, 4.5vw + 1rem, 4.5rem);
   font-weight: 400;
   color: var(--color-text);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: var(--font-mono);
   margin: 0 0 1rem 0;
   letter-spacing: -1px;
   text-transform: uppercase;
@@ -42,12 +42,12 @@
 }
 
 .home-hero__tagline {
-  font-size: clamp(0.95rem, 1.5vw + 0.5rem, 1.25rem);
+  font-size: clamp(1.05rem, 1.85vw + 0.55rem, 1.45rem);
   color: var(--color-text-secondary);
-  max-width: min(520px, 90vw);
+  max-width: min(560px, 90vw);
   margin: 0 0 2.5rem 0;
   line-height: 1.6;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .home-hero__ctas {
@@ -60,8 +60,8 @@
 .home-hero__btn {
   display: inline-block;
   padding: 0.875rem 1.75rem;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 1rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -113,7 +113,7 @@
 .home-discord__btn {
   display: inline-block;
   padding: 0.75rem 1.5rem;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -157,13 +157,31 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
+  width: 3.25rem;
+  height: 3.25rem;
   margin: 0 auto 1.25rem;
-  color: var(--color-accent);
-  background: rgba(255, 255, 255, 0.05);
   border-radius: 50%;
   padding: 0.5rem;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+}
+
+.home-feature__icon--scrim {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.home-feature__icon--team {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.14);
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.home-feature__icon--tier {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.16);
+  border-color: rgba(251, 191, 36, 0.45);
 }
 
 .home-feature__icon svg {
@@ -173,17 +191,28 @@
 
 .home-feature__label {
   display: block;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: clamp(0.95rem, 1.9vw, 1.1rem);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--color-accent);
   margin-bottom: 0.5rem;
+}
+
+.home-feature--scrim .home-feature__label {
+  color: #7dd3fc;
+}
+
+.home-feature--team .home-feature__label {
+  color: #c4b5fd;
+}
+
+.home-feature--tier .home-feature__label {
+  color: #fcd34d;
 }
 
 .home-feature p {
   margin: 0;
-  font-size: clamp(0.875rem, 1.5vw, 0.95rem);
+  font-size: clamp(0.95rem, 1.65vw, 1.05rem);
   color: var(--color-text-secondary);
   line-height: 1.5;
   overflow-wrap: break-word;

@@ -192,7 +192,7 @@
 }
 
 .logo-text {
-  font-family: var(--logo-font, 'Orbitron', sans-serif);
+  font-family: var(--logo-font, 'Orbitron', ui-sans-serif, system-ui);
   font-weight: 900;
   font-size: clamp(1rem, 2vw, 1.25rem);
   color: var(--color-text);
