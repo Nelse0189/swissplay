@@ -12,6 +12,8 @@ import { format, addDays, parse } from 'date-fns';
 const EVENT_TYPES = [
   { value: 'scrim', label: 'Scrim' },
   { value: 'game', label: 'Game' },
+  { value: 'match', label: 'Match' },
+  { value: 'vod', label: 'VOD' },
   { value: 'meetup', label: 'Meetup' },
   { value: 'custom', label: 'Custom' }
 ];
@@ -35,6 +37,8 @@ const COLOR_EMOJI_OPTIONS = [
   { value: '⚔️', label: '⚔️ Scrim' },
   { value: '🎯', label: '🎯 Practice' },
   { value: '🏆', label: '🏆 Tournament' },
+  { value: '🏅', label: '🏅 Match' },
+  { value: '🎬', label: '🎬 VOD' },
   { value: '👋', label: '👋 Meetup' },
   { value: '📌', label: '📌 Custom' },
   { value: '📅', label: '📅 Event' },
@@ -44,6 +48,8 @@ const COLOR_EMOJI_OPTIONS = [
 const EVENT_TYPE_DEFAULT_EMOJI = {
   scrim: '⚔️',
   game: '🎮',
+  match: '🏅',
+  vod: '🎬',
   meetup: '👋',
   custom: '📌'
 };

@@ -2,8 +2,25 @@ import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder,
 import admin from 'firebase-admin';
 import { getTeamByManagerDiscordId } from '../lib/firebase-helpers.js';
 
-const EVENT_TYPES = ['scrim', 'practice', 'tournament', 'meetup', 'custom'];
-const EVENT_EMOJI = { scrim: '⚔️', practice: '🎯', tournament: '🏆', meetup: '👋', custom: '📌' };
+const EVENT_TYPES = ['scrim', 'practice', 'tournament', 'meetup', 'custom', 'vod', 'match'];
+const EVENT_EMOJI = {
+  scrim: '⚔️',
+  practice: '🎯',
+  tournament: '🏆',
+  meetup: '👋',
+  custom: '📌',
+  vod: '🎬',
+  match: '🏅'
+};
+const EVENT_TYPE_LABEL = {
+  scrim: 'Scrim',
+  practice: 'Practice',
+  tournament: 'Tournament',
+  meetup: 'Meetup',
+  custom: 'Custom',
+  vod: 'VOD',
+  match: 'Match'
+};
 
 /**
  * Handle /add-event - Manager adds a calendar event
@@ -77,7 +94,7 @@ export async function handleAddEventSlash(interaction) {
       .addFields(
         { name: 'Date', value: dateStr, inline: true },
         { name: 'Time', value: `${startTime} - ${endTime}`, inline: true },
-        { name: 'Type', value: eventType, inline: true }
+        { name: 'Type', value: EVENT_TYPE_LABEL[eventType] || eventType, inline: true }
       );
     if (recurrenceRule) {
       embed.addFields({ name: 'Recurrence', value: recurrence, inline: false });

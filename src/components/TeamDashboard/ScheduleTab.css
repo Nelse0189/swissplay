@@ -146,6 +146,98 @@
   color: #1a1a1a;
 }
 
+.calendar-events-section {
+  margin-top: 0.5rem;
+}
 
+.calendar-events-section h3 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #1a1a1a;
+  border-left: 4px solid #1a1a1a;
+  padding-left: 1rem;
+}
 
+.calendar-events-hint {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0 0 1.25rem 1rem;
+  line-height: 1.4;
+}
+
+.calendar-events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-event-card {
+  background: rgba(26, 26, 26, 0.92);
+  color: #e8e4dc;
+  padding: 1rem 1rem 1rem 1.1rem;
+  border-left: 4px solid #8b8680;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.calendar-event-card:hover {
+  transform: translateX(4px);
+  background: rgba(26, 26, 26, 1);
+}
+
+.calendar-event-card--match {
+  border-left-color: #c9a227;
+}
+
+.calendar-event-card--vod {
+  border-left-color: #6b8cce;
+}
+
+.calendar-event-card--scrim {
+  border-left-color: #d4c5b0;
+}
+
+.calendar-event-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.calendar-event-card__emoji {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.calendar-event-card__type {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  color: #b8b3ab;
+}
+
+.calendar-event-card__title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  color: #f5f2eb;
+}
+
+.calendar-event-card__time {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  color: #a8a29a;
+}
+
+.calendar-events-empty {
+  margin-top: 0;
+}
 

@@ -22,7 +22,11 @@ const EVENT_TYPE_EMOJI = {
   scrim: '⚔️',
   game: '🎮',
   meetup: '👋',
-  custom: '📌'
+  custom: '📌',
+  vod: '🎬',
+  match: '🏅',
+  practice: '🎯',
+  tournament: '🏆'
 };
 
 /** Expand recurring events into instances for calendar display */

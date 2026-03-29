@@ -1426,7 +1426,15 @@ async function getUpcomingEventsForTeam(db, teamId, now, endDate, rrulestr) {
     .get();
 
   const allEvents = [];
-  const EVENT_TYPE_EMOJI = { scrim: '⚔️', practice: '🎯', tournament: '🏆', meetup: '👋', custom: '📌' };
+  const EVENT_TYPE_EMOJI = {
+    scrim: '⚔️',
+    practice: '🎯',
+    tournament: '🏆',
+    meetup: '👋',
+    custom: '📌',
+    vod: '🎬',
+    match: '🏅'
+  };
 
   for (const evDoc of eventsSnapshot.docs) {
     const ev = { id: evDoc.id, ...evDoc.data() };

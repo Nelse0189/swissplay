@@ -504,6 +504,8 @@ export const commands = [
           { name: 'Practice', value: 'practice' },
           { name: 'Tournament', value: 'tournament' },
           { name: 'Meetup', value: 'meetup' },
+          { name: 'VOD', value: 'vod' },
+          { name: 'Match', value: 'match' },
           { name: 'Custom', value: 'custom' }
         ))
     .addStringOption(option =>

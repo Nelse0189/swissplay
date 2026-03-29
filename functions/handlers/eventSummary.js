@@ -13,7 +13,9 @@ const EVENT_TYPE_EMOJI = {
   practice: '🎯',
   tournament: '🏆',
   meetup: '👋',
-  custom: '📌'
+  custom: '📌',
+  vod: '🎬',
+  match: '🏅'
 };
 
 export async function handleEventSummarySlash(interaction) {
